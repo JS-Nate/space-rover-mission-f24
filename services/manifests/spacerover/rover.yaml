@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rover
+  namespace: spacerover
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rover
+  template:
+    metadata:
+      labels:
+        app: rover
+    spec:
+      containers:
+      - name: rover
+        image: ayadinou/rover:latest
+        ports:
+        - containerPort: 5045
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rover
+  namespace: spacerover
+spec:
+  selector:
+    app: rover
+  ports:
+    - protocol: TCP
+      port: 5045
+      targetPort: 5045
+  type: ClusterIP
+

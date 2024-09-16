@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gameservice
+  namespace: spacerover
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gameservice
+  template:
+    metadata:
+      labels:
+        app: gameservice
+    spec:
+      containers:
+      - name: gameservice
+        image: ayadinou/gameservice:latest
+        ports:
+        - containerPort: 9080
+        resources:
+          requests:
+            cpu: "300m"
+          limits:
+            cpu: "700m" 
+        envFrom:
+        - configMapRef:
+              name: gameservice-mock-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gameservice
+  namespace: spacerover
+spec:
+  selector:
+    app: gameservice
+  ports:
+    - protocol: TCP
+      port: 9080
+      targetPort: 9080
+      nodePort: 32085
+  type: NodePort
+

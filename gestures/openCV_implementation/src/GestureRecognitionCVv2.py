@@ -22,7 +22,7 @@ import sys
 
 print("Starting to connect")
 #uri = "ws://192.168.0.101:9070/roversocket"
-URI = "ws://localhost:9070/roversocket"
+URI = "ws://kind-control-plane:32085/roversocket"
 
 
 # Asynchronously try to connect to the server

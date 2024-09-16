@@ -1,5 +1,5 @@
 # Use Python 3.7 as the base image
-FROM python:3.7-slim
+FROM python:3.8
 
 # Set environment variables to prevent Python from writing .pyc files to disk
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     libsm6 \
     libxrender1 \
+   # xvfb \
     libxext6 && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -19,12 +20,12 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy the requirements into the container
-COPY gestures/openCV_implementation/src/requirements.txt .
+COPY requirements.txt .
 
 # Create a virtual environment and install dependencies
 RUN if [ ! -d ${PYTHON_VENV_DIR} ]; then \
         echo "Creating venv for space rover gesture control service in ${PYTHON_VENV_DIR}"; \
-        python3.7 -m venv ${PYTHON_VENV_DIR}; \
+        python3 -m venv ${PYTHON_VENV_DIR}; \
     fi && \
     . ${PYTHON_VENV_DIR}/bin/activate && \
     pip install --upgrade pip && \
@@ -32,6 +33,6 @@ RUN if [ ! -d ${PYTHON_VENV_DIR} ]; then \
 
 # Copy the rest of your application code (optional)
 COPY . .
-
+# CMD ["sleep", "3600"]
 # Activate the virtual environment when the container starts
-CMD ["/bin/bash", "-c", "source ${PYTHON_VENV_DIR}/bin/activate && python your_app.py"]
+CMD ["/bin/bash", "-c", "source ${PYTHON_VENV_DIR}/bin/activate && xvfb-run python3 GestureRecognitionCVv2.py"]

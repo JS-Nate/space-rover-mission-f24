@@ -1,0 +1,64 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongo-data-pvc
+  namespace: database
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app.service: mongo
+  name: mongo
+  namespace: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.service: mongo
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.service: mongo
+    spec:
+      containers:
+        - image: ayadinou/mongo
+          name: mongo
+          ports:
+            - containerPort: 27017
+          resources: {}
+          envFrom:
+            - secretRef:
+                name: mongo-secret 
+          volumeMounts:
+            - mountPath: /data/db
+              name: mongo-data-pvc
+      restartPolicy: Always
+      volumes:
+        - name: mongo-data-pvc
+          persistentVolumeClaim:
+            claimName: mongo-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.service: mongo
+  name: mongo
+  namespace: database
+spec:
+  ports:
+    - name: "port"
+      port: 27017
+      targetPort: 27017
+  selector:
+    app.service: mongo

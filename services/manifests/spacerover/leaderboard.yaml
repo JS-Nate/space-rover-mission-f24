@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: leaderboard
+  namespace: spacerover
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: leaderboard
+  template:
+    metadata:
+      labels:
+        app: leaderboard
+    spec:
+      containers:
+      - name: leaderboard
+        image: ayadinou/leaderboard:latest
+        ports:
+        - containerPort: 9080
+        env:
+        - name: MONGO_HOSTNAME
+          value: "mongo.database"
+        - name: MONGO_PORT
+          value: "27017"
+        - name: MONGO_DBNAME
+          value: "spaceDB"
+        - name: MONGO_USER
+          value: "spaceUser"
+        - name: MONGO_PASS_ENCODED
+          value: "{xor}MC86MTM2PTotKyY="
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: leaderboard
+  namespace: spacerover
+spec:
+  selector:
+    app: leaderboard
+  ports:
+    - protocol: TCP
+      port: 9070
+      targetPort: 9080
+  type: ClusterIP
+

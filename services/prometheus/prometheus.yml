@@ -13,4 +13,4 @@ scrape_configs:
     # scheme defaults to 'http'.
     scrape_interval: 5s
     static_configs:
-      - targets: ['gameservice:9080']
+      - targets: ['gameservice.spacerover:9080']

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gameservice-mock-config
+  namespace: spacerover
+data:
+  io.openliberty.spacerover.ip: "192.168.0.115"
+  io.openliberty.spacerover.port: "5045"
+  io.openliberty.gameboard.ip: "board"
+  io.openliberty.gameboard.port: "5045"
+  io.openliberty.leaderboard.hostname: "leaderboard"
+  io.openliberty.leaderboard.port: "9070"
+  io.openliberty.server.hostname: "gameservice"
+  io.openliberty.server.port: "9080"

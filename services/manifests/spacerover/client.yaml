@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: client
+  namespace: spacerover
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: client
+  template:
+    metadata:
+      labels:
+        app: client
+    spec:
+      containers:
+      - name: client
+        image: ayadinou/client:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+        env:  
+        - name: REACT_APP_GAME_URL
+          value: http://localhost:9070/game 
+        - name: REACT_APP_GAME_SOCKET_URL
+          value: ws://localhost:9070/roversocket
+        - name: REACT_APP_GAME_DURATION_SECONDS
+          value: "120"
+        - name: REACT_APP_LEADERBOARD_URL
+          value: http://localhost:9190/mongo/leaderboard
+---
+apiVersion: v1
+kind: Service 
+metadata:
+  name: client
+  namespace: spacerover
+spec:
+  selector:
+    app: client
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 80
+  type: ClusterIP
