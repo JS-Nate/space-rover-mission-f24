@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     libsm6 \
     libxrender1 \
-   # xvfb \
+    xvfb \
     libxext6 && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -33,6 +33,6 @@ RUN if [ ! -d ${PYTHON_VENV_DIR} ]; then \
 
 # Copy the rest of your application code (optional)
 COPY . .
-# CMD ["sleep", "3600"]
+# CMD ["sleep", "7200"]
 # Activate the virtual environment when the container starts
-CMD ["/bin/bash", "-c", "source ${PYTHON_VENV_DIR}/bin/activate && xvfb-run python3 GestureRecognitionCVv2.py"]
+ CMD ["/bin/bash", "-c", "(source ${PYTHON_VENV_DIR}/bin/activate && xvfb-run python3 GestureRecognitionCVv2.py)"]
