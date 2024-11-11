@@ -18,12 +18,20 @@ const HomePage = () => {
         <Combomark className="h-24 mr-16" />
         <p className="text-orange text-3xl">Space Rover Mission</p>
       </div>
-      <Link
-        className="block text-5xl font-medium px-32 py-8 my-14 rounded-lg bg-green hover:bg-green-light"
-        to="/play"
-      >
-        Play
-      </Link>
+      <div className="mt-10 flex flex-col space-y-6">
+        <Link
+          className="block text-5xl font-medium px-32 py-8 rounded-lg bg-green hover:bg-green-light text-center"
+          to="/play"
+        >
+          Play
+        </Link>
+        <Link
+          className="block text-5xl font-medium px-32 py-8 rounded-lg bg-blue hover:bg-blue-light text-center"
+          to="/tutorial"
+        >
+          Tutorial
+        </Link>
+      </div>
     </div>
   );
 };
