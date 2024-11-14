@@ -90,11 +90,11 @@ async def repl():
         window_name = "Hand Gesture Recognition Live Capture"
 
         # Use default capture device with default rendering
-        # capture = cv2.VideoCapture(0)
+        capture = cv2.VideoCapture(0)
 
         # Initialize the camera stream from the Raspberry Pi
-        stream_url = "http://192.168.0.115:8081/stream.mjpg"  # Replace with your stream URL
-        capture = cv2.VideoCapture(stream_url)
+        # stream_url = "http://192.168.0.115:8081/stream.mjpg"  # Replace with your stream URL
+        # capture = cv2.VideoCapture(stream_url)
 
         # Window name
         cv2.namedWindow(window_name, cv2.WND_PROP_AUTOSIZE)

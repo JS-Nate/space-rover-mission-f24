@@ -96,6 +96,7 @@ async def repl():
             # Flip image frame
             cv2image1 = cv2.flip(image, 1)
 
+
             # Show FPS on screen
             _, img = fps_counter.update(cv2image1, pos=(
                 50, 80), color=(0, 255, 0), scale=3, thickness=3)

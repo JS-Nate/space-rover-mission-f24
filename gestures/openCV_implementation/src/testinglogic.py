@@ -203,7 +203,7 @@ def get_navigation_direction(frame):
 
 
 # uses the webcam feed to call and display get_navigation_direction's information on screen 
-# Webcam feed and displaying navigation information
+# Webcam feed and displaying navigation informationn
 def main():
     # Open the webcam
     # cap = cv2.VideoCapture(0)

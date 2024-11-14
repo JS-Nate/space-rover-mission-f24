@@ -7,7 +7,7 @@ self_driving_script_path = os.path.join(os.path.dirname(__file__), 'SelfDriving.
 # Display a message and prompt the user to choose
 print("Welcome to the choice menu!")
 print("1. Run Gesture Recognition Script")
-print("2. Run Self Driving Scripttttt")
+print("2. Run Self Driving Script")
 
 choice = input("Enter your choice (1 or 2): ").strip()
 
