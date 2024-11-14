@@ -1,4 +1,4 @@
-# Use Python 3.7 as the base image
+# Use Python 3.8 as the base image
 FROM python:3.8
 
 # Set environment variables to prevent Python from writing .pyc files to disk
@@ -31,8 +31,8 @@ RUN if [ ! -d ${PYTHON_VENV_DIR} ]; then \
     pip install --upgrade pip && \
     pip install -r requirements.txt
 
-# Copy the rest of your application code (optional)
+# Copy the rest of your application code (including Python files and best.pt) into the container
 COPY . .
-# CMD ["sleep", "7200"]
-# Activate the virtual environment when the container starts
- CMD ["/bin/bash", "-c", "(source ${PYTHON_VENV_DIR}/bin/activate && xvfb-run python3 GestureRecognitionCVv2.py)"]
+
+# Run the script when the container starts
+CMD ["/bin/bash", "-c", "(source ${PYTHON_VENV_DIR}/bin/activate && xvfb-run python3 test.py)"]
