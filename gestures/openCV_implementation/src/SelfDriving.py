@@ -212,7 +212,7 @@ def get_navigation_direction(frame):
             forward_start_time = time.time()
         else:
             forward_elapsed = time.time() - forward_start_time
-            if forward_elapsed < 3:  # Move forward for 1 second
+            if forward_elapsed < 2:  # Move forward for 1 second
                 return "F", "Forward"  # Moving Forward
             elif stop_after_forward_start_time is None:  # Start stopping for 4 seconds
                 stop_after_forward_start_time = time.time()
