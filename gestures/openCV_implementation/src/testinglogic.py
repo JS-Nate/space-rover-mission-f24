@@ -89,12 +89,12 @@ def get_navigation_direction(frame):
 
 
 
-    # # Set the logging level to ERROR or CRITICAL to suppress YOLO logs
-    # logging.getLogger('ultralytics').setLevel(logging.CRITICAL)
+    # Set the logging level to ERROR or CRITICAL to suppress YOLO logs
+    logging.getLogger('ultralytics').setLevel(logging.CRITICAL)
 
-    # # Suppress print statements and stderr if needed
-    # sys.stdout = open(os.devnull, 'w')
-    # sys.stderr = sys.stdout  # Optional
+    # Suppress print statements and stderr if needed
+    sys.stdout = open(os.devnull, 'w')
+    sys.stderr = sys.stdout  # Optional
 
     # YOLO prediction logic
     results = model.predict(frame)
@@ -206,11 +206,11 @@ def get_navigation_direction(frame):
 # Webcam feed and displaying navigation informationn
 def main():
     # Open the webcam
-    # cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(0)
 
 
     stream_url = "http://192.168.0.115:8081/stream.mjpg"  # Replace with your stream URL
-    cap = cv2.VideoCapture(stream_url)
+    # cap = cv2.VideoCapture(stream_url)
 
 
     

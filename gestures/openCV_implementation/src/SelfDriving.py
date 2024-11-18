@@ -22,6 +22,7 @@ import sys
 import numpy as np
 import os
 import logging
+import keyboard
 from ultralytics import YOLO
 
 print("Starting to connect")
@@ -57,14 +58,14 @@ asyncio.get_event_loop().run_until_complete(main())
 
 
 # Load the YOLO model
-model = YOLO("best.pt", verbose=False)
+model = YOLO("best2.pt")
 
 # Define obstacle and target categories
-obstacles = {"Sun", "Asteroids", "Black Hole"}
-targets = {"Venus", "Jupiter", "Earth", "Saturn"}
+obstacles = {"Sun", "Galaxy", "Black Hole"}
+targets = {"Asteroid", "Earth", "Saturn"}
 
 # Angle threshold for deciding if the car needs to turn
-angle_threshold = 5
+angle_threshold = 30
 currently_tracking = None
 collected_objects = []
 searching_phase = False
@@ -89,12 +90,17 @@ async def repl():
         fps_counter = cvzone.FPS()
         window_name = "Hand Gesture Recognition Live Capture"
 
-        # Use default capture device with default rendering
-        capture = cv2.VideoCapture(0)
 
         # Initialize the camera stream from the Raspberry Pi
-        # stream_url = "http://192.168.0.115:8081/stream.mjpg"  # Replace with your stream URL
+        stream_url = "http://192.168.0.115:8081/stream.mjpg"  # Replace with your stream URL
         # capture = cv2.VideoCapture(stream_url)
+        
+        capture = cv2.VideoCapture(0)
+
+
+
+
+
 
         # Window name
         cv2.namedWindow(window_name, cv2.WND_PROP_AUTOSIZE)
@@ -112,10 +118,6 @@ async def repl():
         detector = HandDetector(detectionCon=0.6, minTrackCon=0.6, maxHands=1)
 
 
-
-
-
-
         # Capture continuous video
         while True:
 
@@ -125,28 +127,13 @@ async def repl():
             # Get interruption key from keyboard
             k = cv2.waitKey(1)  # get input from keyboard
 
-            # Flip image frame
-            # cv2image1 = cv2.flip(image, 1)
-
             # Show FPS on screen
             _, img = fps_counter.update(image, pos=(50, 80), color=(0, 255, 0), scale=3, thickness=3)
-
-            # Find the hand and its landmarks
-            # hands, img = detector.findHands(img, flipType=False)
-
-            
-            # print(lmList1)
-
-            # Index finger
-            # _, index_info = detector.findDistance(lmList1[8][0:2], lmList1[5][0:2])  # with draw
-
-            # Second finger
-            # _, second_info = detector.findDistance(lmList1[12][0:2], lmList1[9][0:2])  # with draw
-
 
 
             # Get the network message and human-readable message for navigation
             network_msg, human_msg = get_navigation_direction(image)
+            # print(human_msg)
 
             # Now you can use both network_msg and human_msg as needed
             cv2.putText(img, f'Gesture Detected: {human_msg}', (465, 140), font, 1.2, (255, 100, 0), 2, cv2.LINE_AA)
@@ -155,12 +142,7 @@ async def repl():
             previous = await send_msg_if_not_previous(websocket, previous, network_msg)
 
 
-            # else:
-            #     # If the user's hand leaves the camera, send the stop signal
-            #     cv2.putText(img, 'Display your hand in the camera',
-            #                 (400, 140), font, 0.9, (255, 0, 0), 3, cv2.LINE_AA)
-            #     previous = await send_msg_if_not_previous(websocket, previous, "S")
-
+          
             cv2.imshow(window_name, img)
 
             if k == 27:  # Press 'Esc' key to exit
@@ -187,83 +169,81 @@ async def send_msg_if_not_previous(websocket, previous_msg, msg):
     return previous_msg
 
 
-def get_direction_msg(first_finger_index, second_finger_index):
-    '''Returns the network message and human readable direction given the first finger and second finger index information based on 720p resolution'''
-    if (first_finger_index[3] - first_finger_index[1] > 75) and (second_finger_index[3] - second_finger_index[1] > 75) and (abs(first_finger_index[2] - first_finger_index[0]) < 75) and (abs(second_finger_index[2] - second_finger_index[0]) < 75):
-        msg = "F", "Forward"
-    elif ((first_finger_index[1] - first_finger_index[3] > 75) and (second_finger_index[1] - second_finger_index[3] > 75) and (abs(first_finger_index[2] - first_finger_index[0]) < 50) and (abs(second_finger_index[2] - second_finger_index[0]) < 50)):
-        msg = "B", "Reverse"
-    elif (first_finger_index[2] - first_finger_index[0] > 50) and (second_finger_index[2] - second_finger_index[0] > 50):
-        msg = "L", "Left"
-    elif (first_finger_index[0] - first_finger_index[2] > 50) and (second_finger_index[0] - second_finger_index[2] > 50):
-        msg = "R", "Right"
-    else:
-        msg = "S", "Stop"
-    return msg
-
-
 # Function to calculate angle between vectors in degrees
 def calculate_angle(v1, v2):
     cos_theta = np.clip(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2)), -1.0, 1.0)
     return np.degrees(np.arccos(cos_theta))
 
 
+# Add global flag for locked state
+locked_in = False
 
+# Timestamp to track when the target was last in "Getting Close" stage
+getting_close_timestamp = None
 
-
-
-
-
-
+# Timestamp variables for delays
+in_front_of_start_time = None
+forward_start_time = None
+stop_after_forward_start_time = None
 
 def get_navigation_direction(frame):
-    global currently_tracking, collected_objects, searching_phase, stop_display_time
+    global currently_tracking, collected_objects, searching_phase, stop_display_time, locked_in, getting_close_timestamp
+    global in_front_of_start_time, forward_start_time, stop_after_forward_start_time
 
     height, width, _ = frame.shape
     bottom_center = (width // 2, height)  # Center bottom of the frame
-    
-    # # Handle the "Stop" phase (after pressing 'x')
+
+    # Handle the "Stop" phase (after pressing 'x')
     if stop_display_time:
         elapsed_time = time.time() - stop_display_time
         if elapsed_time < 2:
-            # Display the "Stop" message for 2 seconds
-            print("Returning Stop phase")  # Debug log
-            # return ("S", "Stop")  # Return as tuple
-            msg = "S", "Stop"
+            return "S", "Stop"
         else:
-            # After 2 seconds, enter searching phase
             stop_display_time = None
             searching_phase = True
-            currently_tracking = None  # Reset tracking
+            currently_tracking = None
 
-    # # Handle the searching phase
+    # Handle "In Front Of" behavior
+    if in_front_of_start_time:
+        elapsed_time = time.time() - in_front_of_start_time
+        if elapsed_time < 2:  # Stop for 2 seconds
+            return "S", "Stop"  # In Front Of
+        elif forward_start_time is None:  # Start moving forward
+            forward_start_time = time.time()
+        else:
+            forward_elapsed = time.time() - forward_start_time
+            if forward_elapsed < 3:  # Move forward for 1 second
+                return "F", "Forward"  # Moving Forward
+            elif stop_after_forward_start_time is None:  # Start stopping for 4 seconds
+                stop_after_forward_start_time = time.time()
+            else:
+                stop_after_forward_elapsed = time.time() - stop_after_forward_start_time
+                if stop_after_forward_elapsed < 4:  # Stop for 4 seconds
+                    return "S", "Stop"  # Stopping After Forward
+                else:  # Reset and exit locked-in phase
+                    in_front_of_start_time = None
+                    forward_start_time = None
+                    stop_after_forward_start_time = None
+                    locked_in = False
+                    searching_phase = True  # Enter search phase if no target is found
+
+    # Handle the searching phase
     if searching_phase:
         results = model.predict(frame)
         detected_objects = results[0].boxes
-        found_new_target = False
         for obj in detected_objects:
             class_id = int(obj.cls[0])
             label = model.names[class_id]
             if label in targets and label not in collected_objects:
-                found_new_target = True
                 currently_tracking = label
+                searching_phase = False
+                locked_in = False
                 break
-        
-        if found_new_target:
-            searching_phase = False  # Exit searching phase immediately
-            searching_start_time = None  # Reset the start time
         else:
-            print("Searching phase - Returning Right turn")  # Debug log
-            # return ("R", "Searching - Turn Right")  # Return as tuple
-            msg = "R", "Right"
+            return "L", "Left"  # Searching, turning left
 
-    # Perform object detection in tracking phase
-
-
-
-
-
-
+    # # YOLO prediction logic
+    # results = model.predict(frame)
 
     # Set the logging level to ERROR or CRITICAL to suppress YOLO logs
     logging.getLogger('ultralytics').setLevel(logging.CRITICAL)
@@ -283,63 +263,121 @@ def get_navigation_direction(frame):
 
 
 
-
-    detected_objects = results[0].boxes
     
-    # Gather target centers, excluding collected ones
+    detected_objects = results[0].boxes
     target_centers = []
     for obj in detected_objects:
         class_id = int(obj.cls[0])
         label = model.names[class_id]
-        
-        if label in collected_objects:
-            continue  # Skip collected targets
-        
         x1, y1, x2, y2 = map(int, obj.xyxy[0])
         center_x, center_y = (x1 + x2) // 2, (y1 + y2) // 2
-        
-        # Draw bounding box and label
-        color = (0, 0, 255) if label in obstacles else (0, 255, 0)
-        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-        cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
-
         if label in targets:
             target_centers.append((center_x, center_y, label))
 
-    # If there are targets, find the nearest to bottom center
+    # Check for target proximity
     if target_centers:
         nearest_target = min(target_centers, key=lambda p: np.linalg.norm(np.array(bottom_center) - np.array(p[:2])))
         target_center, target_label = nearest_target[:2], nearest_target[2]
-
-        # Calculate direction angle
         vector_to_target = np.array(target_center) - np.array(bottom_center)
         vertical_vector = np.array([0, -1])
         angle = calculate_angle(vector_to_target, vertical_vector)
 
-        # If the angle exceeds the threshold, decide whether to turn right or left based on the x-component of the vector.
-        if angle > angle_threshold:
-            if vector_to_target[0] > 0:
-                msg = "R", "Right"
-            else:
-                msg = "L", "Left"
+        # Draw the line dynamically to the target
+        cv2.line(frame, bottom_center, tuple(target_center), (255, 0, 0), 2)
+        cv2.putText(frame, f"{target_label}", (target_center[0] + 10, target_center[1] + 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+
+        # Handle "Getting Close" stage
+        if target_center[1] > height * 0.8:  # Close to the bottom (80% of frame height)
+            cv2.putText(frame, "Getting Close!", (10, height - 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+            getting_close_timestamp = time.time()  # Update the timestamp
+
+        if locked_in:
+            if target_label == currently_tracking:
+                return "F", "Forward"
         else:
-            msg = "F", "Forward"
-
-        # Track the current target
-        if currently_tracking != target_label:
-            currently_tracking = target_label
-
-        
-
-        # print(f"Returning direction: {direction}, message: {human_msg}")  # Debug log
-        # return (direction, human_msg)  # Return as tuple
-    
-    # If no targets are detected, return 'S' for stop
+            if angle > angle_threshold:
+                return "R" if vector_to_target[0] > 0 else "L", "Turning"
+            else:
+                locked_in = True
+                currently_tracking = target_label
+                return "F", "Forward"
     else:
-        print("Returning Stop phase")  # Debug log
-        msg = "S", "Stop"
-    
-    return msg
+        # Check if the target was "Getting Close" but is now undetected
+        if getting_close_timestamp and time.time() - getting_close_timestamp > 3:
+            getting_close_timestamp = None  # Reset the timestamp
+            in_front_of_start_time = time.time()  # Trigger "In Front Of"
+            return "S", "In Front Of"
+        return "S", "Stop"
+
+    return "S", "Stop"  # Default safety stop
+
+
+
+
+
+
+
+
+
+# Debugging one
+
+# def get_navigation_direction(frame):
+#     global currently_tracking, collected_objects, searching_phase, stop_display_time, locked_in, getting_close_timestamp
+#     global in_front_of_start_time, forward_start_time, stop_after_forward_start_time, last_command_time
+
+#     height, width, _ = frame.shape
+#     bottom_center = (width // 2, height)
+
+#     # YOLO prediction logic
+#     results = model.predict(frame)
+#     detected_objects = results[0].boxes
+#     target_centers = []
+
+#     for obj in detected_objects:
+#         class_id = int(obj.cls[0])
+#         label = model.names[class_id]
+
+#         x1, y1, x2, y2 = map(int, obj.xyxy[0])
+#         center_x, center_y = (x1 + x2) // 2, (y1 + y2) // 2
+#         color = (0, 0, 255) if label in obstacles else (0, 255, 0)
+
+#         # Draw bounding boxes and labels
+#         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+#         cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+
+#         if label in targets:
+#             target_centers.append((center_x, center_y, label))
+
+#     # Check for target proximity
+#     if target_centers:
+#         nearest_target = min(target_centers, key=lambda p: np.linalg.norm(np.array(bottom_center) - np.array(p[:2])))
+#         target_center, target_label = nearest_target[:2], nearest_target[2]
+#         vector_to_target = np.array(target_center) - np.array(bottom_center)
+#         vertical_vector = np.array([0, -1])
+#         angle = calculate_angle(vector_to_target, vertical_vector)
+
+#         # Overlay debugging info
+#         cv2.line(frame, bottom_center, tuple(target_center), (255, 0, 0), 2)
+#         print(f"Target Label: {target_label}")
+#         print(f"Angle: {angle:.2f}")
+
+#         # if keyboard.is_pressed('x'):  # Checks if 'x' is pressed
+#         #     print("Turned camera IRL to face the object, should give F, forward now")
+
+
+
+#         # Direction logic
+#         horizontal_distance = vector_to_target[0]
+#         if abs(horizontal_distance) < 20 and angle < angle_threshold:
+#             return "F", "Forward"
+#         elif horizontal_distance > 0:
+#             return "R", "Right"
+#         else:
+#             return "L", "Left"
+
+#     return "S", "Stop"
+
 
 
 

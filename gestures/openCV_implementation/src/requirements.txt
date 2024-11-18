@@ -5,3 +5,4 @@ websockets==10.2
 protobuf>=3.17.3
 ultralytics
 numpy
+keyboard
