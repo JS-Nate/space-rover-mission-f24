@@ -1,0 +1,2 @@
+helm install prometheus prometheus-community/prometheus -f prometheus-values.yaml --namespace monitoring --create-namespace
+helm install grafana grafana/grafana -f grafana-values.yaml --namespace monitoring
