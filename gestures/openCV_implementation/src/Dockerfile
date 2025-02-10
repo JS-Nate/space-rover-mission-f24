@@ -35,4 +35,4 @@ RUN if [ ! -d ${PYTHON_VENV_DIR} ]; then \
 COPY . .
 
 # Run the script when the container starts
-CMD ["/bin/bash", "-c", "(source ${PYTHON_VENV_DIR}/bin/activate && xvfb-run python3 test.py)"]
+CMD ["/bin/bash", "-c", "(source ${PYTHON_VENV_DIR}/bin/activate && xvfb-run python3 ChooseDriving.py)"]
