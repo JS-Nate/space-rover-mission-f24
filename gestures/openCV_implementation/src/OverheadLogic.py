@@ -7,7 +7,7 @@ import sys
 
 # Ensure we are working with the correct directory
 script_dir = os.path.dirname(os.path.realpath(__file__))  # Get directory of the script
-model_path = os.path.join(script_dir, "overheadbest.pt")
+model_path = os.path.join(script_dir, "overheadbest3.pt")
 
 # Check if model file exists
 if not os.path.exists(model_path):
@@ -36,8 +36,6 @@ saved_target_position = None  # Stores the saved position of the nearest target
 
 
 
-
-
 while True:
     # Capture frame-by-frame
     ret, frame = cap.read()
@@ -58,7 +56,7 @@ while True:
 
 
     # Define classifications
-    targets = ["earth", "saturn"]
+    targets = ["Earth", "Saturn"]
 
     # Annotate frame with detection results
     annotated_frame = frame.copy()
@@ -77,6 +75,7 @@ while True:
     center_object = None
     target_centers = []
 
+
     # Find the "bottom", "top", and "center" objects and target centers
     for i, box in enumerate(boxes):
         label = labels[int(box.cls)]  # Get the class label
@@ -85,16 +84,21 @@ while True:
         # Get the center of the bounding box
         box_center = ((x1 + x2) // 2, (y1 + y2) // 2)
 
-        if label == "bottom":
+        if label == "Bottom":
             bottom_object = box_center
-        elif label == "top":
+        elif label == "Top":
             top_object = box_center
-        elif label == "center":
+        elif label == "Center":
             center_object = box_center
         elif label in targets:
             target_centers.append((box_center, label))
-        # print(f"Detected label: {label}, Center: {box_center}")
-
+        # Print the positions of top_object, center_object, and bottom_object
+        if top_object:
+            print(f"Top Object Position: {top_object}")
+        if center_object:
+            print(f"Center Object Position: {center_object}")
+        if bottom_object:
+            print(f"Bottom Object Position: {bottom_object}")
 
     # If there is no object labeled "bottom" or "top", display the frame without annotations
     if not bottom_object or not top_object:
@@ -105,11 +109,12 @@ while True:
 
     # Draw a line from the 'bottom' object to the 'top' object
     cv2.line(annotated_frame, bottom_object, top_object, (0, 255, 255), 2)
-    print(bottom_object, top_object)
+    # print(bottom_object, top_object)
 
     # Calculate direction based on relative positions of bottom and top objects
     dx = top_object[0] - bottom_object[0]
     dy = top_object[1] - bottom_object[1]
+    print(dx, dy)
 
     if abs(dy) > abs(dx):
         direction = "North" if dy < 0 else "South"
@@ -171,7 +176,7 @@ while True:
                     angle_diff += 360
 
                 nearest_target_text = f"Nearest Target: {nearest_target_label.capitalize()}"
-                cv2.putText(annotated_frame, nearest_target_text, (20, 200), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
+                cv2.putText(annotated_frame, nearest_target_text, (20, annotated_frame.shape[0] - 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
 
                 # Draw a line from 'center' to the nearest target
                 # if center_object:
@@ -181,18 +186,18 @@ while True:
                 if center_object is not None and saved_target_position is not None:
                     line_length = np.linalg.norm(np.array(center_object) - np.array(saved_target_position))
                     length_text = f"Line Length: {line_length:.2f} pixels"
-                    cv2.putText(annotated_frame, length_text, (20, 400), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
+                    # cv2.putText(annotated_frame, length_text, (20, 400), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
                 else:
                     line_length = 0  # or some default value
 
 
 
                 length_text = f"Line Length: {line_length:.2f} pixels"
-                cv2.putText(annotated_frame, length_text, (20, 400), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
+                # cv2.putText(annotated_frame, length_text, (20, 400), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
 
                 # Display the angle difference on the screen
                 angle_diff_text = f"Angle Diff: {angle_diff:.2f} degrees"
-                cv2.putText(annotated_frame, angle_diff_text, (20, 240), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
+                # cv2.putText(annotated_frame, angle_diff_text, (20, 240), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
 
 
                 
@@ -203,7 +208,7 @@ while True:
                 if abs(angle_diff) <= 10:
                     # If we're in focus mode and "Sent Message F" has not been printed yet
                     if line_length >= 60 and not f_printed:
-                        # print("Sent Message F")
+                        print("Sent Message F")
                         cv2.putText(annotated_frame, f"Forward", (20, 280), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 1, cv2.LINE_AA)
 
                         f_printed = True  # Set flag to indicate F has been printed
@@ -213,13 +218,13 @@ while True:
 
                     # Update the focused text on screen
                     focused_text = f"Focused: {focused}"
-                    cv2.putText(annotated_frame, focused_text, (20, 320), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
+                    # cv2.putText(annotated_frame, focused_text, (20, 320), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
 
                     if line_length < 60:  # Threshold for "very small" distance
-                        cv2.putText(annotated_frame, "Got it, Stop", (20, 320), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
+                        cv2.putText(annotated_frame, "Stop", (20, 320), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
 
                         # Display the distance to the target on the screen
-                        # print("Sent Message S")
+                        print("Sent Message S")
 
                         # Start a timer for 5 seconds to remove the current target
                         if nearest_target_label not in locked_targets:
@@ -239,12 +244,12 @@ while True:
                     if focused == False:
                         if angle_diff > 0:
                             rotation_direction = "Right"
-                            # print("Sent Message R")
+                            print("Sent Message R")
                         else:
                             rotation_direction = "Left"
-                            # print("Sent Message L")
+                            print("Sent Message L")
 
-                        cv2.putText(annotated_frame, f"Rotate {rotation_direction}", (20, 280), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 1, cv2.LINE_AA)
+                        cv2.putText(annotated_frame, f"Rotate {rotation_direction}", (20, annotated_frame.shape[0] - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 1, cv2.LINE_AA)
 
 
 

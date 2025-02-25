@@ -55,7 +55,11 @@ def main():
 asyncio.get_event_loop().run_until_complete(main())
 
 # Load the YOLO model
-model = YOLO("overheadbest.pt")
+model = YOLO("overheadbest3.pt")
+
+
+
+
 
 async def repl():
     async with websockets.connect(URI) as websocket:
@@ -66,13 +70,6 @@ async def repl():
         # Speed Control parameters for the Rover
         previous = "S"
 
-        # Font
-        font = cv2.FONT_HERSHEY_SIMPLEX
-
-        # Set up for fps counter
-        fps_counter = cvzone.FPS()
-        window_name = "Hand Gesture Recognition Live Capture"
-
 
         # Initialize the camera stream from the Raspberry Pi
         stream_url = "http://192.168.0.115:8081/stream.mjpg"  # Replace with your stream URL
@@ -80,56 +77,207 @@ async def repl():
         
         capture = cv2.VideoCapture(0)
 
-        # Window name
-        cv2.namedWindow(window_name, cv2.WND_PROP_AUTOSIZE)
-
-        # set to full screen on all OS
-        cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN,
-                              cv2.WINDOW_FULLSCREEN)
-
-        # Use 720 manual setting for the webcam. Static resolution values are used below so we must keep the
-        # video feed constant.
-        # capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        # capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-        # Using cvzone library to detect and track the hand
-        # detector = HandDetector(detectionCon=0.6, minTrackCon=0.6, maxHands=1)
-
-
+        # Dictionary to track target confidence over time
+        target_confidence = {}
+        locked_targets = {}  # Dictionary to store locked target positions
+        smoothed_boxes = {}
+        alpha = 0.2  
+        locked_target_position = False
+        # Dictionary to track nearest target over time
+        nearest_target_start_time = None
+        saved_target_position = None  # Stores the saved position of the nearest target
+        network_msg = None
 
         # Capture continuous video
         while True:
 
             # Get image frame
-            _, image = capture.read()  # read from the video
-            # Reverse the image feed horizontally and vertically
-            # image = cv2.flip(image, 1)
+            ret, frame = capture.read()
+            if not ret:
+                continue
 
-            # Get interruption key from keyboard
-            k = cv2.waitKey(1)  # get input from keyboard
-
-            # Show FPS on screen
-            _, img = fps_counter.update(image, pos=(50, 80), color=(0, 255, 0), scale=3, thickness=3)
+            results = model.predict(frame, verbose=False)
+            targets = ["Earth", "Saturn"]
 
 
-            # Get the network message and human-readable message for navigation
-            network_msg, human_msg = get_navigation_direction(image)
-            # print(human_msg)
+            # Access the results (boxes, labels, etc.)
+            if len(results) > 0:
+                boxes = results[0].boxes  # Accessing the first result
+                labels = results[0].names  # Accessing the labels
+            else:
+                boxes = []
+                labels = []
 
-            # Now you can use both network_msg and human_msg as needed
-            cv2.putText(img, f'Gesture Detected: {human_msg}', (465, 140), font, 1.2, (255, 100, 0), 2, cv2.LINE_AA)
+            bottom_object = None
+            top_object = None
+            center_object = None
+            target_centers = []
 
-            # Send the network message to the server, ensuring we don't send the same message twice
+            for i, box in enumerate(boxes):
+                label = labels[int(box.cls)]  # Get the class label
+                x1, y1, x2, y2 = map(int, box.xyxy[0].cpu().numpy())
+
+                box_center = ((x1 + x2) // 2, (y1 + y2) // 2)
+
+                if label == "Bottom":
+                    bottom_object = box_center
+                elif label == "Top":
+                    top_object = box_center
+                elif label == "Center":
+                    center_object = box_center
+                elif label in targets:
+                    target_centers.append((box_center, label))
+                # Print the positions of top_object, center_object, and bottom_object
+                # if top_object:
+                #     print(f"Top Object Position: {top_object}")
+                # if center_object:
+                #     print(f"Center Object Position: {center_object}")
+                # if bottom_object:
+                #     print(f"Bottom Object Position: {bottom_object}")
+            
+            if top_object is None or bottom_object is None:
+                print("Error: top_object or bottom_object is None")
+                continue  # Skip the rest of the loop iteration
+
+
+            # Calculate direction based on relative positions of bottom and top objects
+            dx = top_object[0] - bottom_object[0]
+            dy = top_object[1] - bottom_object[1]
+            # print(dx, dy)
+
+            if abs(dy) > abs(dx):
+                direction = "North" if dy < 0 else "South"
+            else:
+                direction = "East" if dx > 0 else "West"
+            
+
+            # Calculate the angle (in degrees) of the line between 'bottom' and 'top'
+            angle_rad = np.arctan2(dy, dx)
+            angle_deg = np.degrees(angle_rad)
+
+
+            # Find the nearest target
+            nearest_target = None
+            nearest_target_label = None
+            min_distance = float('inf')
+            focused = False
+            for center, label in target_centers:
+                distance = np.linalg.norm(np.array(center) - np.array(bottom_object))
+                if distance < min_distance:
+                    min_distance = distance
+                    nearest_target = center
+                    nearest_target_label = label
+
+
+                    # If we have a nearest target, track it over time
+                    if nearest_target:
+                        if nearest_target_start_time is None:
+                            nearest_target_start_time = time.time()  # Start timer
+                        elif time.time() - nearest_target_start_time >= 2:
+                            if saved_target_position is None:
+                                saved_target_position = nearest_target  # Save position after 2 sec
+                    else:
+                        nearest_target_start_time = None  # Reset timer if no target found
+                    
+                    # Draw the saved red dot (if captured)
+                    if saved_target_position:
+                        # nearest_target = None  # Stop drawing the nearest target once saved_target_position is set
+
+
+                        target_dx = saved_target_position[0] - bottom_object[0]
+                        target_dy = saved_target_position[1] - bottom_object[1]
+                        target_angle_rad = np.arctan2(target_dy, target_dx)
+                        target_angle_deg = np.degrees(target_angle_rad)
+
+                        angle_diff = target_angle_deg - angle_deg
+                        if angle_diff > 180:
+                            angle_diff -= 360
+                        elif angle_diff < -180:
+                            angle_diff += 360
+
+                        # nearest_target_text = f"Nearest Target: {nearest_target_label.capitalize()}"
+
+                        if center_object is not None and saved_target_position is not None:
+                            line_length = np.linalg.norm(np.array(center_object) - np.array(saved_target_position))
+                            length_text = f"Line Length: {line_length:.2f} pixels"
+                        else:
+                            line_length = 0  # or some default value
+
+                        
+                        # Initialize a flag to remember if F has already been printed
+                        f_printed = False
+
+                        # Indicate on screen when the line is pointing at the nearest target
+                        if abs(angle_diff) <= 10:
+                            # If we're in focus mode and "Sent Message F" has not been printed yet
+                            if line_length >= 60 and not f_printed:
+                                # print("Sent Message F")
+                                network_msg = "F"
+
+                                f_printed = True  # Set flag to indicate F has been printed
+
+                            # Ensure the focus mode is activated
+                            focused = True
+
+                            # Update the focused text on screen
+                            # focused_text = f"Focused: {focused}"
+
+                            if line_length < 76:  # Threshold for "very small" distance
+
+                                # Display the distance to the target on the screen
+                                # print("Sent Message S")
+                                network_msg = "S"
+
+                                # Start a timer for 5 seconds to remove the current target
+                                if nearest_target_label not in locked_targets:
+                                    locked_targets[nearest_target_label] = time.time()
+                                    # print(locked_targets)
+
+                                # Check if 5 seconds have passed
+                                if time.time() - locked_targets[nearest_target_label] >= 5:
+                                    # Remove the current target from detection
+                                    target_centers = [tc for tc in target_centers if tc[1] != nearest_target_label]
+                                    del locked_targets[nearest_target_label]
+                                    saved_target_position = None  # Reset saved target position
+                                    focused = False
+                                    f_printed = False  # Reset flag when focus mode ends
+                                else:
+                                    # Ensure network_msg remains "S" during the 5 seconds
+                                    network_msg = "S"
+
+                        else:
+                            if focused == False:
+                                if angle_diff > 0:
+                                    rotation_direction = "Right"
+                                    # print("Sent Message R")
+                                    network_msg = "R"
+                                else:
+                                    rotation_direction = "Left"
+                                    # print("Sent Message L")
+                                    network_msg = "L"
+
+                                # cv2.putText(annotated_frame, f"Rotate {rotation_direction}", (20, annotated_frame.shape[0] - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 1, cv2.LINE_AA)
+
+
+
+            if network_msg is None:
+                network_msg = "S"
+
+    
             previous = await send_msg_if_not_previous(websocket, previous, network_msg)
 
 
-          
-            cv2.imshow(window_name, img)
+            cv2.imshow("YOLO Detection", frame)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
 
-            if k == 27:  # Press 'Esc' key to exit
-                # await websocket.send("Hand Gesture Control connection closed.")
-                break  # Exit while loop
+
+            # Get the network message and human-readable message for navigation
+            # network_msg, human_msg = get_navigation_direction(image)        
 
         # ========================================
+
+
 
         # Close down window
         cv2.destroyAllWindows()
@@ -145,9 +293,9 @@ async def send_msg_if_not_previous(websocket, previous_msg, msg):
     if msg != previous_msg:
         if msg != "S":
             await websocket.send("S")
-            print("Sent message", "S")
+            print("Sents message", "S")
         await websocket.send(msg)
-        print("Sent message", msg)
+        print("Sents message", msg)
         previous_msg = msg
     return previous_msg
 
@@ -159,68 +307,71 @@ async def send_msg_if_not_previous(websocket, previous_msg, msg):
 
 
 
-def get_navigation_direction(frame):
+# def get_navigation_direction(frame):
 
-    # Set the logging level to ERROR or CRITICAL to suppress YOLO logs
-    logging.getLogger('ultralytics').setLevel(logging.CRITICAL)
+#     # Set the logging level to ERROR or CRITICAL to suppress YOLO logs
+#     logging.getLogger('ultralytics').setLevel(logging.CRITICAL)
 
-    # YOLO prediction logic
-    results = model.predict(frame, verbose=False)
+#     # YOLO prediction logic
+#     results = model.predict(frame, verbose=False)
 
-    # Define classifications
-    targets = ["earth", "saturn"]
+#     # Define classifications
+#     targets = ["earth", "saturn"]
 
-    # Annotate frame with detection results
-    # annotated_frame = frame.copy()
+#     # Annotate frame with detection results
+#     # annotated_frame = frame.copy()
 
-    # Access the results (boxes, labels, etc.)
-    if len(results) > 0:
-        boxes = results[0].boxes  # Accessing the first result
-        labels = results[0].names  # Accessing the labels
-    else:
-        boxes = []
-        labels = []
+#     # Access the results (boxes, labels, etc.)
+#     if len(results) > 0:
+#         boxes = results[0].boxes  # Accessing the first result
+#         labels = results[0].names  # Accessing the labels
+#     else:
+#         boxes = []
+#         labels = []
 
-    # List of target centers, bottom, top, and center objects
-    bottom_object = None
-    top_object = None
-    center_object = None
-    target_centers = []
+#     # List of target centers, bottom, top, and center objects
+#     bottom_object = None
+#     top_object = None
+#     center_object = None
+#     target_centers = []
 
-    # Initialize bottom_object as None
-    bottom_object = None
+#     for i, box in enumerate(boxes):
+#         label = labels[int(box.cls)]  # Get the class label
+#         x1, y1, x2, y2 = map(int, box.xyxy[0].cpu().numpy())
 
-    for i, box in enumerate(boxes):
-        label = labels[int(box.cls)]  # Get the class label
-        x1, y1, x2, y2 = map(int, box.xyxy[0].cpu().numpy())
+#         # Get the center of the bounding box
+#         box_center = ((x1 + x2) // 2, (y1 + y2) // 2)
 
-        # Get the center of the bounding box
-        box_center = ((x1 + x2) // 2, (y1 + y2) // 2)
+#         if label.lower() == "bottom":
+#             bottom_object = box_center
+#             # if bottom_object is None or box_center[1] < bottom_object[1]:  
+#                 # bottom_object = box_center  # Choose the topmost (smallest y-value) "bottom" object
+#         elif label == "top":
+#             top_object = box_center
+#         elif label == "center":
+#             center_object = box_center
+#         elif label in targets:
+#             target_centers.append((box_center, label))
+#         # print(f"Detected label: {label}, Center: {box_center}")
+#         # print(f"Final bottom_object: {bottom_object}")  # Debugging print
 
-        if label.lower() == "bottom":
-            if bottom_object is None or box_center[1] < bottom_object[1]:  
-                bottom_object = box_center  # Choose the topmost (smallest y-value) "bottom" object
-
-        elif label == "top":
-            top_object = box_center
-        elif label == "center":
-            center_object = box_center
-        elif label in targets:
-            target_centers.append((box_center, label))
-        # print(f"Detected label: {label}, Center: {box_center}")
-        # print(f"Final bottom_object: {bottom_object}")  # Debugging print
+#         if top_object:
+#             print(f"Top Object Position: {top_object}")
+#         if center_object:
+#             print(f"Center Object Position: {center_object}")
+#         if bottom_object:
+#             print(f"Bottom Object Position: {bottom_object}")
 
 
+#     # If bottom or top is missing, return None
+#     if bottom_object is None or top_object is None:
+#         return "S", "Stop"
 
-    # If bottom or top is missing, return None
-    if bottom_object is None or top_object is None:
-        return "S", "Stop"
+#     # Draw a line from the 'bottom' object to the 'top' object
+#     cv2.line(frame, bottom_object, top_object, (0, 255, 255), 2)
+#     print(bottom_object, top_object)  # Now this should print correctly on every frame update
 
-    # Draw a line from the 'bottom' object to the 'top' object
-    cv2.line(frame, bottom_object, top_object, (0, 255, 255), 2)
-    print(bottom_object, top_object)  # Now this should print correctly on every frame update
-
-    return "S", "Stop"
+#     return "S", "Stop"
 
 
 
