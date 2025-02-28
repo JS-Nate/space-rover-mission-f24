@@ -160,7 +160,7 @@ while True:
             
             # Draw the saved red dot (if captured)
             if saved_target_position:
-                # cv2.circle(annotated_frame, saved_target_position, 5, (0, 0, 255), -1)
+                cv2.circle(annotated_frame, saved_target_position, 5, (0, 0, 255), -1)
                 # nearest_target = None  # Stop drawing the nearest target once saved_target_position is set
 
 
@@ -186,18 +186,18 @@ while True:
                 if center_object is not None and saved_target_position is not None:
                     line_length = np.linalg.norm(np.array(center_object) - np.array(saved_target_position))
                     length_text = f"Line Length: {line_length:.2f} pixels"
-                    # cv2.putText(annotated_frame, length_text, (20, 400), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
+                    cv2.putText(annotated_frame, length_text, (20, 400), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
                 else:
                     line_length = 0  # or some default value
 
 
 
                 length_text = f"Line Length: {line_length:.2f} pixels"
-                # cv2.putText(annotated_frame, length_text, (20, 400), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
+                cv2.putText(annotated_frame, length_text, (20, 400), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
 
                 # Display the angle difference on the screen
                 angle_diff_text = f"Angle Diff: {angle_diff:.2f} degrees"
-                # cv2.putText(annotated_frame, angle_diff_text, (20, 240), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
+                cv2.putText(annotated_frame, angle_diff_text, (20, 240), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
 
 
                 
@@ -218,7 +218,7 @@ while True:
 
                     # Update the focused text on screen
                     focused_text = f"Focused: {focused}"
-                    # cv2.putText(annotated_frame, focused_text, (20, 320), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
+                    cv2.putText(annotated_frame, focused_text, (20, 320), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
 
                     if line_length < 60:  # Threshold for "very small" distance
                         cv2.putText(annotated_frame, "Stop", (20, 320), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)

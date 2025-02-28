@@ -5,6 +5,11 @@ FROM python:3.8
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHON_VENV_DIR="/app/venv"
+ENV OMP_NUM_THREADS=4
+ENV OPENBLAS_NUM_THREADS=4
+ENV NUMEXPR_NUM_THREADS=4
+ENV MKL_NUM_THREADS=4
+
 
 # Install system dependencies for OpenCV and other packages
 RUN apt-get update && apt-get install -y \
@@ -12,8 +17,10 @@ RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     libsm6 \
     libxrender1 \
+    libxext6 \
     xvfb \
-    libxext6 && \
+    x11-xserver-utils \
+    ffmpeg && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory in the container
@@ -34,5 +41,5 @@ RUN if [ ! -d ${PYTHON_VENV_DIR} ]; then \
 # Copy the rest of your application code (including Python files and best.pt) into the container
 COPY . .
 
-# Run the script when the container starts
-CMD ["/bin/bash", "-c", "(source ${PYTHON_VENV_DIR}/bin/activate && xvfb-run python3 ChooseDriving.py)"]
+# Run the script when the container starts (WITHOUT xvfb-run)
+CMD ["/bin/bash", "-c", "source ${PYTHON_VENV_DIR}/bin/activate && python3 ChooseDriving.py"]
