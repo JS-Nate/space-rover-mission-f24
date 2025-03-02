@@ -1207,6 +1207,12 @@ serverFiles:
         scrape_interval: 15s
         static_configs:
           - targets: ['gameservice.spacerover:9080']
+      - job_name: 'rover'
+    # metrics_path defaults to '/metrics'
+    # scheme defaults to 'http'.
+        scrape_interval: 5s
+        static_configs:
+          - targets: ['192.168.0.115:9100']
 
 # adds additional scrape configs to prometheus.yml
 # must be a string so you have to add a | after extraScrapeConfigs:

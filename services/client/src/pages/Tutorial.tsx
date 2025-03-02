@@ -31,4 +31,4 @@ const TutorialPage = () => {
   );
 };
 
-export default TutorialPage;
+export default TutorialPage; 
