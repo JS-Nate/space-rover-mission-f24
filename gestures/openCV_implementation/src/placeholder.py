@@ -132,7 +132,8 @@ async def repl():
             if top_object is None or bottom_object is None:
                 print("Error: top_object or bottom_object is None")
                 continue  # Skip the rest of the loop iteration
-
+            
+            # Draw a line between the bottom and top objects
             cv2.line(frame, bottom_object, top_object, (0, 255, 255), 2)
             # Calculate direction based on relative positions of bottom and top objects
             dx = top_object[0] - bottom_object[0]
