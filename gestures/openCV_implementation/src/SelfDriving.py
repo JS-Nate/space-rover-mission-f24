@@ -58,7 +58,7 @@ class VideoCapture:
         self.cap.release()
 
 # ✅ **Initialize Threaded Video Capture**
-cap = VideoCapture(2)
+cap = VideoCapture(0)
 
 # ✅ **Use OpenCV Optimized Settings**
 cv2.setUseOptimized(True)
@@ -66,8 +66,11 @@ cv2.setUseOptimized(True)
 async def send_msg_if_not_previous(websocket, previous_msg, msg):
     """ Sends a message to the WebSocket only if it's different from the last one. """
     if msg != previous_msg:
+        if msg != "S":
+            await websocket.send("S")
+            print("Sents message", "S")
         await websocket.send(msg)
-        print("Sent message:", msg)
+        print("Sents message", msg)
         previous_msg = msg
     return previous_msg
 
@@ -81,9 +84,17 @@ async def process_yolo(websocket):
     use_cuda = cv2.cuda.getCudaEnabledDeviceCount() > 0
     print(f"OpenCV CUDA Enabled: {use_cuda}")
 
+    # Dictionary to track target confidence over time
+    target_confidence = {}
+    locked_targets = {}  # Dictionary to store locked target positions
+    smoothed_boxes = {}
+    alpha = 0.2  
+    locked_target_position = False
+    # Dictionary to track nearest target over time
     nearest_target_start_time = None
-    saved_target_position = None
-    locked_targets = {}
+    saved_target_position = None  # Stores the saved position of the nearest target
+    network_msg = None
+
 
     while True:
         if processing:
@@ -139,7 +150,7 @@ async def process_yolo(websocket):
 
                 cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(annotated_frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 1)
-
+                
                 if label == "Bottom":
                     bottom_object = box_center
                 elif label == "Top":
@@ -148,11 +159,55 @@ async def process_yolo(websocket):
                     center_object = box_center
                 elif label in targets:
                     target_centers.append((box_center, label))
-
-            # ✅ **Draw Key Connections**
+                              
+                
+            # ✅ **Draw a line connecting the bottom and top objects**
             if bottom_object and top_object:
                 cv2.line(annotated_frame, bottom_object, top_object, (255, 0, 0), 2)
+            dx = top_object[0] - bottom_object[0]
+            dy = top_object[1] - bottom_object[1]
 
+            # Calculate the angle (in degrees) of the line between 'bottom' and 'top'
+            angle_rad = np.arctan2(dy, dx)
+            angle_deg = np.degrees(angle_rad)
+            
+            
+            # Find the nearest target
+            nearest_target = None
+            nearest_target_label = None
+            min_distance = float('inf')
+            focused = False
+            network_msg = "S"
+            
+            for center, label in target_centers:
+                distance = np.linalg.norm(np.array(center) - np.array(center_object))
+                if distance < min_distance:
+                    min_distance = distance
+                    nearest_target = center
+                    nearest_target_label = label
+                    # Display the nearest target label on the bottom left of the screen
+                    if nearest_target_label:
+                        if nearest_target_start_time is None:
+                            nearest_target_start_time = time.time()  # Start timer
+                        elif time.time() - nearest_target_start_time >= 2:
+                            if saved_target_position is None:
+                                saved_target_position = nearest_target  # Save position after 2 sec
+                    else:
+                        nearest_target_start_time = None
+                        saved_target_position = None
+                    
+                    if saved_target_position is not None:
+                        # Draw a line connecting the center object to the nearest target
+                        cv2.line(annotated_frame, center_object, saved_target_position, (0, 0, 255), 2)
+                        # Display the nearest target label on the bottom left of the screen
+                        cv2.putText(annotated_frame, f"Nearest: {nearest_target_label}", (10, 460),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                        focused = True
+                        network_msg = nearest_target_label[0]
+                    else:
+                        network_msg = "S"
+                        focused = False
+            
             # ✅ **Display FPS & Latency on Screen**
             cv2.putText(annotated_frame, f"Latency: {latency:.4f}s ({fps:.2f} FPS)", (10, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)

@@ -2,12 +2,12 @@ import cv2
 
 def open_webcam():
 
-#2 = usb cam
-#0 = laptop cam
+#2 = laptop cam
+#0 = usb cam
 
 
     # Open a connection to the webcam (usually /dev/video0 on Linux)
-    cap = cv2.VideoCapture(2)
+    cap = cv2.VideoCapture(0)
 
     if not cap.isOpened():
         print("Error: Could not open webcam.")
