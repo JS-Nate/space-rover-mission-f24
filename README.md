@@ -126,6 +126,8 @@ The Game Map is the physical game board which the Space Rover roams on. It emits
 
 ### Grafana Dashboard
 -Detects the Rover's temprature, battery, power level to prevent overheating and make user aware of system state
+![image](https://github.com/user-attachments/assets/daab6603-f865-4f25-9a79-5273812cd5c5)
+
 
 ### Gesture Recognition 
 -Webcam watches the code gestures as input and outputs desired action and turn 
