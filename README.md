@@ -15,6 +15,7 @@ The gesture detection is built upon using popular open sourced computer vision l
 2. [Game Board hardware component](https://github.com/OpenLiberty/space-rover-mission/tree/main/devices/game-board) with the project code compiled and running.
 3. [Gesture Control System client](https://github.com/OpenLiberty/space-rover-mission/tree/main/gestures) with webcam facing a defined area for users to control the Space Rover.
 4. Docker CE or [Docker Desktop](https://www.docker.com/products/docker-desktop/) either running on the Gesture Control System's hardware or on its own hardware. 
+5. Kubernetes
 
 ## Setup, Cleanup, and Troubleshooting
 For setup, cleanup, and troubleshooting instructions, see [documentation](https://github.com/OpenLiberty/space-rover-mission/tree/main/documentation).
@@ -29,6 +30,7 @@ Open Liberty Space Rover Mission is playable in four different game modes: Class
 2. **Planet Hop**: One planet will randomly turn on at a time -- go to the planet that is lit up to retrieve its resource. The availability of the planet's resource runs on a timer -- you can only retrieve the resource when its light is on! The planet's light will start blinking if you are running low on time to retrieve its resource, and the next planet's light will automatically turn on when the time is up. Pick up as many planet resources as possible within the time limit while avoiding obstacles.
 3. **Guided**: One planet will turn on at a time in a specific order. Pick up all four planet resources in the order that the planet lights turn on as fast as possible, while avoiding obstacles.
 4. **Sudden Death**: A variant of **Classic** mode, but if you hit an obstacle, you immediately fail the mission.
+5. **Tutorial Mode**: Uses YOLO to detect planets and drive itself
 
 ## Architecture Diagram
 
@@ -102,3 +104,12 @@ The Game Map is the physical game board which the Space Rover roams on. It emits
 	- Used for providing REST API documentation and UI for demonstration.
 
 [![Gitter](https://badges.gitter.im/YourGitterRoom/community.svg)](https://gitter.im/openliberty-spacerover/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+
+
+
+
+
+
+
+
+
