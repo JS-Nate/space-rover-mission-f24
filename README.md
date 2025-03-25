@@ -106,7 +106,28 @@ The Game Map is the physical game board which the Space Rover roams on. It emits
 [![Gitter](https://badges.gitter.im/YourGitterRoom/community.svg)](https://gitter.im/openliberty-spacerover/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
 
+### Self Driving
+-Includes a tutorial mode for beginner players 
+-Uses the YOLO algorithim for object detection 
+-Resorted it to a GPU accelerated mode (through NVIDIA) for faster response time 
 
+### Gameboard 
+-Constructed fencing to safekeep Rover
+-Printed matte poster
+-Object layout of planets and details
+
+### Network
+-used LED ring light display to show the battery perecentage to prevent shutdowns
+-Color code: 100% = green, 50% = yellow, <20% = red
+
+### Grafana Dashboard
+-Detects the Rover's temprature, battery, power level to prevent overheating and make user aware of system state
+
+### Gesture Recognition 
+-Webcam watches the code gestures as input and outputs desired action and turn 
+
+### Steering
+-Built ball castor under Rover to prevent wear and tear
 
 Note: In the length of this project we had the privelge of resorting to many resources for assitance, one of them being ChatGPT. This resource was used to debug code, clean up lengthy unnecessary lines, research YOLO algorithm techniques, calculate simple math calculations (distance and proximity), develop tables, and validate ideas with advancing cloud based systems.
 
