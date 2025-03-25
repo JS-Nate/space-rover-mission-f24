@@ -108,8 +108,12 @@ The Game Map is the physical game board which the Space Rover roams on. It emits
 
 ### Self Driving
 -Includes a tutorial mode for beginner players 
+![image](https://github.com/user-attachments/assets/1662cc64-472c-4ed0-bc4c-21a187a4595d)
+
 -Uses the YOLO algorithim for object detection 
 -Resorted it to a GPU accelerated mode (through NVIDIA) for faster response time 
+
+
 
 ### Gameboard 
 -Constructed fencing to safekeep Rover
