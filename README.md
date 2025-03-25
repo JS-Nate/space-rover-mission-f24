@@ -112,6 +112,7 @@ The Game Map is the physical game board which the Space Rover roams on. It emits
 
 -Uses the YOLO algorithim for object detection 
 -Resorted it to a GPU accelerated mode (through NVIDIA) for faster response time 
+![image](https://github.com/user-attachments/assets/8bc03597-e7f6-4c95-b121-1cbe4b05c168)
 
 
 
