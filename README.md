@@ -108,7 +108,7 @@ The Game Map is the physical game board which the Space Rover roams on. It emits
 
 
 
-
+Note: In the length of this project we had the privelge of resorting to many resources for assitance, one of them being ChatGPT. This resource was used to debug code, clean up lengthy unnecessary lines, research YOLO algorithm techniques, calculate simple math calculations (distance and proximity), develop tables, and validate ideas with advancing cloud based systems.
 
 
 
