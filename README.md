@@ -106,6 +106,8 @@ The Game Map is the physical game board which the Space Rover roams on. It emits
 [![Gitter](https://badges.gitter.im/YourGitterRoom/community.svg)](https://gitter.im/openliberty-spacerover/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
 
+## 2024-2025 additions
+
 ### Self Driving
 -Includes a tutorial mode for beginner players 
 ![image](https://github.com/user-attachments/assets/1662cc64-472c-4ed0-bc4c-21a187a4595d)
