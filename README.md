@@ -132,6 +132,8 @@ The Game Map is the physical game board which the Space Rover roams on. It emits
 
 ### Steering
 -Built ball castor under Rover to prevent wear and tear
+![image](https://github.com/user-attachments/assets/9b0d0b63-a213-4ed4-ae80-9e06ebeb1e2f)
+
 
 Note: In the length of this project we had the privelge of resorting to many resources for assitance, one of them being ChatGPT. This resource was used to debug code, clean up lengthy unnecessary lines, research YOLO algorithm techniques, calculate simple math calculations (distance and proximity), develop tables, and validate ideas with advancing cloud based systems.
 
