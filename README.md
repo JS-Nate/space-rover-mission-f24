@@ -124,6 +124,8 @@ The Game Map is the physical game board which the Space Rover roams on. It emits
 ### Network
 -used LED ring light display to show the battery perecentage to prevent shutdowns
 -Color code: 100% = green, 50% = yellow, <20% = red
+![image](https://github.com/user-attachments/assets/9e6e2c4e-a901-4e84-9786-1a62bf29a955)
+
 
 ### Grafana Dashboard
 -Detects the Rover's temprature, battery, power level to prevent overheating and make user aware of system state
