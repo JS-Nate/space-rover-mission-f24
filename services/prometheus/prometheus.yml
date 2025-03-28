@@ -14,3 +14,9 @@ scrape_configs:
     scrape_interval: 5s
     static_configs:
       - targets: ['gameservice.spacerover:9080']
+  - job_name: 'rover'
+    # metrics_path defaults to '/metrics'
+    # scheme defaults to 'http'.
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['192.168.0.115:9100']

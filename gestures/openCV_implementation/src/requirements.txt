@@ -6,5 +6,6 @@ protobuf>=3.17.3
 ultralytics
 numpy
 keyboard
-onnx
-onnxruntime-gpu
+flask
+flask-cors
+

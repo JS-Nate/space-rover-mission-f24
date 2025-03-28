@@ -19,6 +19,17 @@ import websockets
 from cvzone.HandTrackingModule import HandDetector
 import time
 import sys
+from flask import Flask, Response
+from flask_cors import CORS
+import threading
+
+# Flask app to serve MJPEG stream
+app = Flask(__name__)
+CORS(app)
+
+# Global variable to hold the latest frame
+latest_frame = None
+
 
 print("Starting to connect")
 #uri = "ws://192.168.0.101:9070/roversocket"
@@ -50,6 +61,27 @@ def main():
 # Run the main loop until we are able to connect to the server
 asyncio.get_event_loop().run_until_complete(main())
 
+@app.route('/video_feed')
+def video_feed():
+    def generate():
+        global latest_frame
+        while True:
+            if latest_frame is not None:
+                _, jpeg = cv2.imencode('.jpg', latest_frame)
+                frame = jpeg.tobytes()
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+            time.sleep(0.03)  # about 30 fps
+    return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+def start_flask():
+    app.run(host="0.0.0.0", port=5000)
+
+# Start Flask in background
+threading.Thread(target=start_flask, daemon=True).start()
+
+
 
 async def repl():
     async with websockets.connect(URI) as websocket:
@@ -68,7 +100,7 @@ async def repl():
         window_name = "Hand Gesture Recognition Live Capture"
 
         # Use default capture device with default rendering
-        capture = cv2.VideoCapture(0)
+        capture = cv2.VideoCapture(2)
         # Window name
         cv2.namedWindow(window_name, cv2.WND_PROP_AUTOSIZE)
 
@@ -153,6 +185,9 @@ async def repl():
                 previous = await send_msg_if_not_previous(websocket, previous, "S")
 
             cv2.imshow(window_name, img)
+            global latest_frame
+            latest_frame = img.copy()
+
 
             if k == 27:  # Press 'Esc' key to exit
                 # await websocket.send("Hand Gesture Control connection closed.")

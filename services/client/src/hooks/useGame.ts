@@ -85,6 +85,7 @@ const useGame = (gameSocketURL: string, durationInSeconds: number) => {
 
   // setup socket
   useEffect(() => {
+    console.log("Test",gameSocketURL);
     socket.current = new WebSocket(gameSocketURL);
 
     return () => {

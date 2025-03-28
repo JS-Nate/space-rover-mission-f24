@@ -1,20 +1,16 @@
-/*******************************************************************************
- * Copyright (c) 2022, 2023 IBM Corporation and others.
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License 2.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-2.0/
- *
- * SPDX-License-Identifier: EPL-2.0
- *******************************************************************************/
-import React from "react";
-import { Navigate } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Navigate, useLocation } from "react-router-dom";
 import PlayerForm from "components/PlayerForm";
 import GameScreen from "components/GameScreen";
 import GameStateMessage from "components/GameStateMessage";
 import BatteryStatus from "components/BatteryStatus";
 import useGame, { GameState } from "hooks/useGame";
 import { gameSocketURL, gameDurationSeconds } from "lib/config";
+
+interface LocationState {
+  autoStart?: boolean;
+  playerName?: string;
+}
 
 const PlayPage = () => {
   const {
@@ -30,6 +26,17 @@ const PlayPage = () => {
     battery,
   } = useGame(gameSocketURL, gameDurationSeconds);
 
+  const location = useLocation();
+  const locationState = (location.state as LocationState) || {};
+  const [autoStarted, setAutoStarted] = useState(false);
+
+  useEffect(() => {
+    if (locationState.autoStart && gameState === GameState.NotStarted && !autoStarted) {
+      startGame(locationState.playerName || "Tutorial", gameMode);
+      setAutoStarted(true);
+    }
+  }, [locationState, gameState, autoStarted, startGame, gameMode]);
+
   switch (gameState) {
     case GameState.Connecting:
     case GameState.Error:
@@ -42,13 +49,8 @@ const PlayPage = () => {
             isDisabled={gameState !== GameState.NotStarted}
             onSubmit={startGame}
           />
-          <GameStateMessage
-            state={gameState}
-            errorMessage={error}
-          />
-          <BatteryStatus
-            batteryPercentage={battery}
-          />
+          <GameStateMessage state={gameState} errorMessage={error} />
+          <BatteryStatus batteryPercentage={battery} />
         </div>
       );
     case GameState.InGame:

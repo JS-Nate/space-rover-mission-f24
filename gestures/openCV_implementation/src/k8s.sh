@@ -1,9 +1,7 @@
 #!/bin/bash
 
-# Allow Docker containers to access the host display
 xhost +local:docker
 
-# Run the container with X11 forwarding
 docker run --rm \
     --gpus all \
     --runtime=nvidia \

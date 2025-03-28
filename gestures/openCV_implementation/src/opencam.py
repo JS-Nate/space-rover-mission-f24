@@ -2,16 +2,21 @@ import cv2
 
 def open_webcam():
 
-#2 = laptop cam
-#0 = usb cam
-
+    # 2 = laptop cam
+    # 0 = usb cam
+    source = 0
 
     # Open a connection to the webcam (usually /dev/video0 on Linux)
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(source)
 
     if not cap.isOpened():
         print("Error: Could not open webcam.")
         return
+
+    # Reduce exposure (if supported by the camera)
+    # The value for exposure depends on the camera driver; you may need to experiment.
+    # Negative values often mean auto-exposure is disabled.
+    cap.set(cv2.CAP_PROP_EXPOSURE, -8)
 
     while True:
         # Capture frame-by-frame
@@ -22,7 +27,7 @@ def open_webcam():
             break
 
         # Display the resulting frame
-        cv2.imshow('Webcam', frame)
+        cv2.imshow(f'Webcam (Source {source})', frame)
 
         # Break the loop on 'q' key press
         if cv2.waitKey(1) & 0xFF == ord('q'):

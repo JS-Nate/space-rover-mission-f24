@@ -19,9 +19,50 @@ dashboardProviders:
         editable: true
         options:
           path: /var/lib/grafana/dashboards/default
-
 dashboards:
   default:
+    rover-dashboard:
+      json: |
+        {
+          "id": null,
+          "title": "Space Rover Dashboard",
+          "panels": [
+            {
+              "type": "graph",
+              "title": "Rover Temperature",
+              "targets": [
+                {
+                  "expr": "node_hwmon_temp_celsius",
+                  "legendFormat": "Temperature (°C)",
+                  "refId": "A"
+                }
+              ],
+              "gridPos": { "x": 0, "y": 0, "w": 12, "h": 6 }
+            }
+          ],
+          "refresh": "10s",
+          "time": {
+            "from": "now-30m",
+            "to": "now"
+          },
+          "schemaVersion": 16,
+          "version": 1,
+          "annotations": {
+            "list": [
+              {
+                "builtIn": 1,
+                "datasource": "Prometheus",
+                "enable": true,
+                "iconColor": "rgba(0, 211, 255, 1)",
+                "name": "Rover Events",
+                "target": {
+                  "expr": "node_hwmon_temp_celsius"
+                },
+                "type": "dashboard"
+              }
+            ]
+          }
+        }
     spacerover-dashboard:
       json: |
         {
