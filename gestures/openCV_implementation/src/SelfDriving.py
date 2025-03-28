@@ -1,388 +1,261 @@
-#################################################################################
-# Copyright (c) 2022 IBM Corporation and others.
-# All rights reserved. This program and the accompanying materials
-# are made available under the terms of the Eclipse Public License 2.0
-# which accompanies this distribution, and is available at
-# http://www.eclipse.org/legal/epl-2.0/
-#
-# SPDX-License-Identifier: EPL-2.0
-#################################################################################
-
-# Import all the important libraries
 import asyncio
-from asyncio import futures
 import cv2
-from cv2 import imshow
-import cvzone
-import mediapipe as mp
-import websockets
-from cvzone.HandTrackingModule import HandDetector
-import time
-import sys
 import numpy as np
+import websockets
+import time
+import threading
+import torch
 import os
-import logging
-import keyboard
+import sys
 from ultralytics import YOLO
 
 print("Starting to connect")
-#uri = "ws://192.168.0.101:9070/roversocket"
 URI = "ws://kind-control-plane:32085/roversocket"
 
+# Load YOLOv11 Model with GPU Acceleration (If Available)
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model = YOLO("overheadbest-v5.pt").to(device)
 
-# Asynchronously try to connect to the server
+if device == "cuda":
+    model.half()  # Enable FP16 inference for speed boost
 
+# Print Model Classes for Debugging
+print(f"Model Classes: {model.names}")
 
-@asyncio.coroutine
-def main():
-    connecting = True
+# Initialize Camera
+capture = cv2.VideoCapture("camera.png")
+capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Reduce buffering delay
+capture.set(cv2.CAP_PROP_FPS, 30)
+capture.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
-    while connecting:
-        try:
+# Global Variables
+frame = None
+running = True
+previous_msg = "S"
 
-            done, pending = yield from asyncio.wait([websockets.connect(URI)])
+# Define target objects and special labels
+TARGETS = ["Earth", "Saturn", "Rose"]  # 🟢 Green
+SPECIAL_LABELS = ["Top", "Center", "Bottom"]  # 🟡 Yellow
 
-            # assert not pending
-            future, = done
-            print(future.result())
-        except:
-            print("Unable to connect to the machine")
-            time.sleep(5)
-        else:
-            connecting = False
-
-
-# Run the main loop until we are able to connect to the server
-asyncio.get_event_loop().run_until_complete(main())
-
-
-
-# Load the YOLO model
-model = YOLO("best2.pt")
-
-# Define obstacle and target categories
-obstacles = {"Sun", "Galaxy", "Black Hole"}
-targets = {"Asteroid", "Earth", "Saturn"}
-
-# Angle threshold for deciding if the car needs to turn
-angle_threshold = 30
-currently_tracking = None
-collected_objects = []
-searching_phase = False
-searching_start_time = None
-stop_display_time = None  # To track when to stop displaying "Stop"
-
-
-
-async def repl():
-    async with websockets.connect(URI) as websocket:
-
-        # Send successful connection message to the server
-        print("Connected")
-
-        # Speed Control parameters for the Rover
-        previous = "S"
-
-        # Font
-        font = cv2.FONT_HERSHEY_SIMPLEX
-
-        # Set up for fps counter
-        fps_counter = cvzone.FPS()
-        window_name = "Hand Gesture Recognition Live Capture"
-
-
-        # Initialize the camera stream from the Raspberry Pi
-        stream_url = "http://192.168.0.115:8081/stream.mjpg"  # Replace with your stream URL
-        # capture = cv2.VideoCapture(stream_url)
-        
-        capture = cv2.VideoCapture(0)
-
-
-
-
-
-
-        # Window name
-        cv2.namedWindow(window_name, cv2.WND_PROP_AUTOSIZE)
-
-        # set to full screen on all OS
-        cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN,
-                              cv2.WINDOW_FULLSCREEN)
-
-
-        # Use 720 manual setting for the webcam. Static resolution values are used below so we must keep the
-        # video feed constant.
-        capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-        # Using cvzone library to detect and track the hand
-        detector = HandDetector(detectionCon=0.6, minTrackCon=0.6, maxHands=1)
-
-
-        # Capture continuous video
-        while True:
-
-            # Get image frame
-            _, image = capture.read()  # read from the video
-
-            # Get interruption key from keyboard
-            k = cv2.waitKey(1)  # get input from keyboard
-
-            # Show FPS on screen
-            _, img = fps_counter.update(image, pos=(50, 80), color=(0, 255, 0), scale=3, thickness=3)
-
-
-            # Get the network message and human-readable message for navigation
-            network_msg, human_msg = get_navigation_direction(image)
-            # print(human_msg)
-
-            # Now you can use both network_msg and human_msg as needed
-            cv2.putText(img, f'Gesture Detected: {human_msg}', (465, 140), font, 1.2, (255, 100, 0), 2, cv2.LINE_AA)
-
-            # Send the network message to the server, ensuring we don't send the same message twice
-            previous = await send_msg_if_not_previous(websocket, previous, network_msg)
-
-
-          
-            cv2.imshow(window_name, img)
-
-            if k == 27:  # Press 'Esc' key to exit
-                # await websocket.send("Hand Gesture Control connection closed.")
-                break  # Exit while loop
-
-        # ========================================
-
-        # Close down window
-        cv2.destroyAllWindows()
-        # Disable your camera
-        capture.release()
-
+def capture_frames():
+    """ Continuously grabs frames, dropping old ones to prevent buffering delay. """
+    global frame
+    while running:
+        ret, latest_frame = capture.read()
+        if ret:
+            frame = cv2.resize(latest_frame, (640, 480))
+        time.sleep(0.001)
 
 async def send_msg_if_not_previous(websocket, previous_msg, msg):
-    '''Sends msg to the websocket so long as it is not the same string as 'previous_msg' '''
+    """ Sends msg to the websocket so long as it is not the same as 'previous_msg'. """
     if msg != previous_msg:
         if msg != "S":
             await websocket.send("S")
-            print("Sent message", "S")
+            print("Sent message:", "S")
         await websocket.send(msg)
-        print("Sent message", msg)
+        print("Sent message:", msg)
         previous_msg = msg
     return previous_msg
 
+async def process_and_send(websocket):
+    """ Runs YOLOv11 detection and sends movement commands asynchronously. """
+    global frame, previous_msg
+    locked_targets = {}  # Track locked targets for 5 seconds
+    saved_target_position = None  # Save target position for 2 seconds
+    nearest_target_start_time = None  # Start timer when nearest target is found
 
-# Function to calculate angle between vectors in degrees
-def calculate_angle(v1, v2):
-    cos_theta = np.clip(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2)), -1.0, 1.0)
-    return np.degrees(np.arccos(cos_theta))
+    while running:
+        if frame is None:
+            continue
+
+        start_time = time.time()
+        latest_frame = frame.copy()
+        # **Fix: Use a clean frame for detection before drawing anything**
+        clean_frame = frame.copy()
+
+        frame_height, frame_width = latest_frame.shape[:2]  # Get image dimensions
+
+        # **Use Full-Color Image Instead of Grayscale**
+        frame_input = latest_frame.copy()
+
+        # Suppress print statements and stderr if needed
+        sys.stdout = open(os.devnull, 'w')
+        sys.stderr = sys.stdout  # Optional
+
+        # **Lower Confidence Threshold to Detect Smaller Objects**
+        results = model.predict(clean_frame, verbose=False, device=device, half=True if device == "cuda" else False, conf=0.25)
+
+        # Re-enable printing
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__  # Re-enable stderr if it was redirected
 
 
-# Add global flag for locked state
-locked_in = False
+        boxes = results[0].boxes if len(results) > 0 else []
+        labels = results[0].names if len(results) > 0 else []
 
-# Timestamp to track when the target was last in "Getting Close" stage
-getting_close_timestamp = None
+        # **Print Detected Labels for Debugging**
+        # print(f"Detected Labels: {labels}")
 
-# Timestamp variables for delays
-in_front_of_start_time = None
-forward_start_time = None
-stop_after_forward_start_time = None
+        network_msg = "S"  # Default to Stop
+        bottom_object = None
+        top_object = None
+        center_object = None
+        target_centers = []
 
-def get_navigation_direction(frame):
-    global currently_tracking, collected_objects, searching_phase, stop_display_time, locked_in, getting_close_timestamp
-    global in_front_of_start_time, forward_start_time, stop_after_forward_start_time
+        # Display detections with color-coded bounding boxes
+        for i, box in enumerate(boxes):
+            label = labels[int(box.cls)]
+            x1, y1, x2, y2 = map(int, box.xyxy[0].cpu().numpy())
+            box_center = ((x1 + x2) // 2, (y1 + y2) // 2)
 
-    height, width, _ = frame.shape
-    bottom_center = (width // 2, height)  # Center bottom of the frame
-
-    # Handle the "Stop" phase (after pressing 'x')
-    if stop_display_time:
-        elapsed_time = time.time() - stop_display_time
-        if elapsed_time < 2:
-            return "S", "Stop"
-        else:
-            stop_display_time = None
-            searching_phase = True
-            currently_tracking = None
-
-    # Handle "In Front Of" behavior
-    if in_front_of_start_time:
-        elapsed_time = time.time() - in_front_of_start_time
-        if elapsed_time < 2:  # Stop for 2 seconds
-            return "S", "Stop"  # In Front Of
-        elif forward_start_time is None:  # Start moving forward
-            forward_start_time = time.time()
-        else:
-            forward_elapsed = time.time() - forward_start_time
-            if forward_elapsed < 2:  # Move forward for 1 second
-                return "F", "Forward"  # Moving Forward
-            elif stop_after_forward_start_time is None:  # Start stopping for 4 seconds
-                stop_after_forward_start_time = time.time()
+            # **Color Logic**
+            if label in TARGETS:
+                color = (0, 255, 0)  # 🟢 Green for targets (Earth, Saturn, Rose)
+                target_centers.append((box_center, label))
+            elif label in SPECIAL_LABELS:
+                color = (0, 255, 255)  # 🟡 Yellow for "Top", "Center", "Bottom"
+                if label == "Top":
+                    top_object = ((x1 + x2) // 2, (y1 + y2) // 2)
+                elif label == "Bottom":
+                    bottom_object = ((x1 + x2) // 2, (y1 + y2) // 2)
+                elif label == "Center":
+                    center_object = ((x1 + x2) // 2, (y1 + y2) // 2)
             else:
-                stop_after_forward_elapsed = time.time() - stop_after_forward_start_time
-                if stop_after_forward_elapsed < 4:  # Stop for 4 seconds
-                    return "S", "Stop"  # Stopping After Forward
-                else:  # Reset and exit locked-in phase
-                    in_front_of_start_time = None
-                    forward_start_time = None
-                    stop_after_forward_start_time = None
-                    locked_in = False
-                    searching_phase = True  # Enter search phase if no target is found
+                color = (0, 0, 255)  # 🔴 Red for everything else
 
-    # Handle the searching phase
-    if searching_phase:
-        results = model.predict(frame)
-        detected_objects = results[0].boxes
-        for obj in detected_objects:
-            class_id = int(obj.cls[0])
-            label = model.names[class_id]
-            if label in targets and label not in collected_objects:
-                currently_tracking = label
-                searching_phase = False
-                locked_in = False
-                break
-        else:
-            return "L", "Left"  # Searching, turning left
+            # Draw Bounding Box & Label
+            cv2.rectangle(latest_frame, (x1, y1), (x2, y2), color, 2)
+            cv2.putText(latest_frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 1)
 
-    # # YOLO prediction logic
-    # results = model.predict(frame)
+        # **Draw a line from "Bottom" → "Top" → Extend beyond "Top" correctly**
+        if bottom_object and top_object:
+            dx = top_object[0] - bottom_object[0]  # Direction X
+            dy = top_object[1] - bottom_object[1]  # Direction Y
 
-    # Set the logging level to ERROR or CRITICAL to suppress YOLO logs
-    logging.getLogger('ultralytics').setLevel(logging.CRITICAL)
+            # Draw the line from "Bottom" to "Top"
+            cv2.line(latest_frame, bottom_object, top_object, (0, 255, 255), 2)  # 🟡 Yellow Line
 
-    # Suppress print statements and stderr if needed
-    sys.stdout = open(os.devnull, 'w')
-    sys.stderr = sys.stdout  # Optional
-
-    # YOLO prediction logic
-    results = model.predict(frame)
-
-    # Re-enable printing
-    sys.stdout = sys.__stdout__
-    sys.stderr = sys.__stderr__  # Re-enable stderr if it was redirected
+            # Calculate the angle (in degrees) of the line between 'bottom' and 'top'
+            angle_rad = np.arctan2(dy, dx)
+            angle_deg = np.degrees(angle_rad)
 
 
+        # Find the target closest to the "Center" object
+        nearest_target = None
+        min_distance = float('inf')
 
 
+        # Find the target closest to the "Center" object
+        nearest_target = None
+        min_distance = float('inf')
 
-    
-    detected_objects = results[0].boxes
-    target_centers = []
-    for obj in detected_objects:
-        class_id = int(obj.cls[0])
-        label = model.names[class_id]
-        x1, y1, x2, y2 = map(int, obj.xyxy[0])
-        center_x, center_y = (x1 + x2) // 2, (y1 + y2) // 2
-        if label in targets:
-            target_centers.append((center_x, center_y, label))
+        if center_object:
+            for center, label in target_centers:
+                distance = np.linalg.norm(np.array(center) - np.array(center_object))
+                if distance < min_distance:
+                    min_distance = distance
+                    nearest_target = (center, label)
 
-    # Check for target proximity
-    if target_centers:
-        nearest_target = min(target_centers, key=lambda p: np.linalg.norm(np.array(bottom_center) - np.array(p[:2])))
-        target_center, target_label = nearest_target[:2], nearest_target[2]
-        vector_to_target = np.array(target_center) - np.array(bottom_center)
-        vertical_vector = np.array([0, -1])
-        angle = calculate_angle(vector_to_target, vertical_vector)
+            # If a nearest target is found
+            if nearest_target:
+                current_time = time.time()
+                if nearest_target_start_time is None:
+                    nearest_target_start_time = time.time()  # Start timer
+                elif time.time() - nearest_target_start_time >= 2:
+                    if saved_target_position is None:
+                        saved_target_position = nearest_target  # Save position after 2 sec
+                else:
+                    nearest_target_start_time = None
 
-        # Draw the line dynamically to the target
-        cv2.line(frame, bottom_center, tuple(target_center), (255, 0, 0), 2)
-        cv2.putText(frame, f"{target_label}", (target_center[0] + 10, target_center[1] + 10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+                # Draw a line from the 'Center' object to the closest TARGET object
+                cv2.line(latest_frame, center_object, nearest_target[0], (0, 255, 0), 2)  # 🟢 Green Line
+                
+                
+                # If the same target remains the closest for at least 3 seconds, lock it
+                if saved_target_position:
+                    # Label the nearest target
+                    cv2.putText(latest_frame, f"Nearest Target: {nearest_target[1]}", 
+                                (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+                    
+                    # **Draw a permanent RED dot at the center of the nearest target**
+                    cv2.circle(latest_frame, nearest_target[0], 5, (0, 0, 255), -1)  # 🔴 Red Dot
+            
+                    line_dx = top_object[0] - bottom_object[0]
+                    line_dy = top_object[1] - bottom_object[1]
 
-        # Handle "Getting Close" stage
-        if target_center[1] > height * 0.8:  # Close to the bottom (80% of frame height)
-            cv2.putText(frame, "Getting Close!", (10, height - 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
-            getting_close_timestamp = time.time()  # Update the timestamp
+                    target_dx = nearest_target[0][0] - bottom_object[0]
+                    target_dy = nearest_target[0][1] - bottom_object[1]
 
-        if locked_in:
-            if target_label == currently_tracking:
-                return "F", "Forward"
-        else:
-            if angle > angle_threshold:
-                return "R" if vector_to_target[0] > 0 else "L", "Turning"
+                    line_angle = np.degrees(np.arctan2(line_dy, line_dx))
+                    target_angle = np.degrees(np.arctan2(target_dy, target_dx))
+
+                    angle_diff = target_angle - line_angle
+
+                    # Normalize angle to -180 to 180
+                    if angle_diff > 180:
+                        angle_diff -= 360
+                    elif angle_diff < -180:
+                        angle_diff += 360
+
+                    # Determine Turn Direction
+                    if angle_diff > 10:  # Target is to the right
+                        turn_direction = "R"
+                        cv2.putText(latest_frame, "Turn Right", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                    elif angle_diff < -10:  # Target is to the left
+                        turn_direction = "L"
+                        cv2.putText(latest_frame, "Turn Left", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                    else:
+                        turn_direction = "S"  # Stay on course
+                        cv2.putText(latest_frame, "Stay Straight", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+                    # Display angle difference for debugging
+                    angle_text = f"Angle Diff: {angle_diff:.2f}°"
+                    cv2.putText(latest_frame, angle_text, (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+
+                    network_msg = turn_direction
+
+                
+                # else:
+                #     # If a new target is closest, reset the timer
+                #     saved_target_position = nearest_target
+                #     nearest_target_start_time = current_time
             else:
-                locked_in = True
-                currently_tracking = target_label
-                return "F", "Forward"
-    else:
-        # Check if the target was "Getting Close" but is now undetected
-        if getting_close_timestamp and time.time() - getting_close_timestamp > 3:
-            getting_close_timestamp = None  # Reset the timestamp
-            in_front_of_start_time = time.time()  # Trigger "In Front Of"
-            return "S", "In Front Of"
-        return "S", "Stop"
+                # Reset tracking if no nearest target
+                saved_target_position = None
+                nearest_target_start_time = None
 
-    return "S", "Stop"  # Default safety stop
+        if network_msg is None:
+            network_msg = "S"
 
 
 
 
 
+        # Send movement command only when it changes
+        previous_msg = await send_msg_if_not_previous(websocket, previous_msg, network_msg)
 
+        cv2.imshow("YOLOv11 Detection", latest_frame)
+        cv2.waitKey(1)
 
+        # Print processing latency
+        # latency = time.time() - start_time
+        # print(f"Latency: {latency:.4f} sec")
 
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
 
-# Debugging one
+async def main():
+    async with websockets.connect(URI) as websocket:
+        print("Connected to WebSocket")
+        await process_and_send(websocket)
 
-# def get_navigation_direction(frame):
-#     global currently_tracking, collected_objects, searching_phase, stop_display_time, locked_in, getting_close_timestamp
-#     global in_front_of_start_time, forward_start_time, stop_after_forward_start_time, last_command_time
+# Start frame capture thread
+threading.Thread(target=capture_frames, daemon=True).start()
 
-#     height, width, _ = frame.shape
-#     bottom_center = (width // 2, height)
+# Run WebSocket & YOLO Processing
+asyncio.run(main())
 
-#     # YOLO prediction logic
-#     results = model.predict(frame)
-#     detected_objects = results[0].boxes
-#     target_centers = []
-
-#     for obj in detected_objects:
-#         class_id = int(obj.cls[0])
-#         label = model.names[class_id]
-
-#         x1, y1, x2, y2 = map(int, obj.xyxy[0])
-#         center_x, center_y = (x1 + x2) // 2, (y1 + y2) // 2
-#         color = (0, 0, 255) if label in obstacles else (0, 255, 0)
-
-#         # Draw bounding boxes and labels
-#         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-#         cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
-
-#         if label in targets:
-#             target_centers.append((center_x, center_y, label))
-
-#     # Check for target proximity
-#     if target_centers:
-#         nearest_target = min(target_centers, key=lambda p: np.linalg.norm(np.array(bottom_center) - np.array(p[:2])))
-#         target_center, target_label = nearest_target[:2], nearest_target[2]
-#         vector_to_target = np.array(target_center) - np.array(bottom_center)
-#         vertical_vector = np.array([0, -1])
-#         angle = calculate_angle(vector_to_target, vertical_vector)
-
-#         # Overlay debugging info
-#         cv2.line(frame, bottom_center, tuple(target_center), (255, 0, 0), 2)
-#         print(f"Target Label: {target_label}")
-#         print(f"Angle: {angle:.2f}")
-
-#         # if keyboard.is_pressed('x'):  # Checks if 'x' is pressed
-#         #     print("Turned camera IRL to face the object, should give F, forward now")
-
-
-
-#         # Direction logic
-#         horizontal_distance = vector_to_target[0]
-#         if abs(horizontal_distance) < 20 and angle < angle_threshold:
-#             return "F", "Forward"
-#         elif horizontal_distance > 0:
-#             return "R", "Right"
-#         else:
-#             return "L", "Left"
-
-#     return "S", "Stop"
-
-
-
-
-
-
-
-# Run the Hand Gesture Recognition ascynchronously after the connection works
-asyncio.get_event_loop().run_until_complete(repl())
+# Cleanup
+capture.release()
+cv2.destroyAllWindows()
