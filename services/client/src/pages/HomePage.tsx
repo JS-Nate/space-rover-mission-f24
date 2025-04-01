@@ -7,7 +7,7 @@ const HomePage = () => {
     <div className="flex flex-col items-center justify-center mx-auto h-full">
       <div className="flex flex-col items-center">
         <Combomark className="h-24 mr-16" />
-        <p className="text-orange text-3xl">Space Rover Mission</p>
+        <p className="text-orange text-3xl">Space Rover Misssssion</p>
       </div>
       <div className="mt-10 flex flex-col space-y-6">
         <Link

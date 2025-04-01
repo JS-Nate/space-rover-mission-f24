@@ -102,11 +102,11 @@ async def repl():
         # Use default capture device with default rendering
         capture = cv2.VideoCapture(2)
         # Window name
-        cv2.namedWindow(window_name, cv2.WND_PROP_AUTOSIZE)
+        # cv2.namedWindow(window_name, cv2.WND_PROP_AUTOSIZE)
 
         # set to full screen on all OS
-        cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN,
-                              cv2.WINDOW_FULLSCREEN)
+        # cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN,
+                            #   cv2.WINDOW_FULLSCREEN)
 
 
         # Use 720 manual setting for the webcam. Static resolution values are used below so we must keep the
@@ -184,7 +184,7 @@ async def repl():
                             (400, 140), font, 0.9, (255, 0, 0), 3, cv2.LINE_AA)
                 previous = await send_msg_if_not_previous(websocket, previous, "S")
 
-            cv2.imshow(window_name, img)
+            # cv2.imshow(window_name, img)
             global latest_frame
             latest_frame = img.copy()
 

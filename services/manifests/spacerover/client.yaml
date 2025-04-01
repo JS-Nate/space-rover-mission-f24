@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: client
-        image: sehajbehl/client:v2.7
+        image: nathanaeljs/client:v1.6
         imagePullPolicy: Always
         ports:
         - containerPort: 80

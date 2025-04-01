@@ -11,4 +11,6 @@ docker run --rm \
     --device /dev/input \
     --env DISPLAY=$DISPLAY \
     --volume /tmp/.X11-unix:/tmp/.X11-unix \
-    --name gesture_container -it gesture
+    --name gesture_container \
+    -p 5000:5000 \
+    -it gesture

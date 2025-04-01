@@ -72,11 +72,6 @@ async def send_msg_if_not_previous(websocket, previous_msg, msg):
 
 
 
-
-
-
-
-
 async def process_yolo(websocket):
     global cap
     previous_msg = "S"
@@ -85,12 +80,12 @@ async def process_yolo(websocket):
     use_cuda = cv2.cuda.getCudaEnabledDeviceCount() > 0
     print(f"OpenCV CUDA Enabled: {use_cuda}")
 
-    target_confidence = {}
-    locked_targets = {}  
+    # target_confidence = {}
+    # locked_targets = {}  
     
-    smoothed_boxes = {}
-    alpha = 0.2  
-    locked_target_position = False
+    # smoothed_boxes = {}
+    # alpha = 0.2  
+    # locked_target_position = False
     nearest_target_start_time = None
     saved_target_position = None  
     saved_target_label = None
@@ -128,7 +123,7 @@ async def process_yolo(websocket):
             fps = 1 / latency if latency > 0 else 0  
 
             if results is None or len(results) == 0 or results[0].boxes is None:
-                print("🚨 No detections found! Skipping frame...")
+                print("No detections found! Skipping frame...")
                 processing = False
                 continue  
 
@@ -161,19 +156,60 @@ async def process_yolo(websocket):
                 
             if bottom_object and top_object:
                 cv2.line(annotated_frame, bottom_object, top_object, (255, 0, 0), 2)
-            dx = top_object[0] - bottom_object[0]
-            dy = top_object[1] - bottom_object[1]
+                dx = top_object[0] - bottom_object[0]
+                dy = top_object[1] - bottom_object[1]
+                angle_rad = np.arctan2(dy, dx)
+                angle_deg = np.degrees(angle_rad)
             
-        
-            angle_rad = np.arctan2(dy, dx)
-            angle_deg = np.degrees(angle_rad)
+            elif top_object and center_object:
+                cv2.line(annotated_frame, center_object, top_object, (0, 0, 255), 2)
+                dx = top_object[0] - center_object[0]
+                dy = top_object[1] - center_object[1]
+                angle_rad = np.arctan2(dy, dx)
+                angle_deg = np.degrees(angle_rad)
+                print("[INFO] Bottom object missing — using Center instead.")
+
+            elif bottom_object and center_object:
+                cv2.line(annotated_frame, bottom_object, center_object, (0, 0, 255), 2)
+                dx = center_object[0] - bottom_object[0]
+                dy = center_object[1] - bottom_object[1]
+                angle_rad = np.arctan2(dy, dx)
+                angle_deg = np.degrees(angle_rad)
+                print("[INFO] Top object missing — using Center instead.")
+
+            else:
+                print("[⚠️] Not enough reference points (Top, Bottom, or Center) — skipping frame.")
+                processing = False
+                continue            
             
+            if not bottom_object or not top_object:
+                print(f"[DEBUG] bottom_object or top_object is None — skipping frame.")
+                processing = False
+                continue
+                        
             
             nearest_target = None
             nearest_target_label = None
             min_distance = float('inf')
             focused = False
        
+            if center_object is None:
+                if top_object and bottom_object:
+                    center_object = (
+                        (top_object[0] + bottom_object[0]) // 2,
+                        (top_object[1] + bottom_object[1]) // 2
+                    )
+                    print("[INFO] center_object missing — using midpoint of Top and Bottom.")
+                else:
+                    print(f"[⚠️] center_object is None and can't compute fallback — skipping frame.")
+                    processing = False
+                    continue
+            
+            last_turn_angle = None
+            last_turn_time = None
+            stuck_start_time = None
+            stuck_recovery = False
+
             
             for center, label in target_centers:
                 distance = np.linalg.norm(np.array(center) - np.array(center_object))
@@ -220,9 +256,10 @@ async def process_yolo(websocket):
                         cv2.putText(annotated_frame, f"Nearest: {saved_target_label}", (10, 460),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 0, 255), 1)
                         
+                        if bottom_object is not None:
+                            target_dx = saved_target_position[0] - bottom_object[0]
+                            target_dy = saved_target_position[1] - bottom_object[1]
                         
-                        target_dx = saved_target_position[0] - bottom_object[0]
-                        target_dy = saved_target_position[1] - bottom_object[1]
                         target_angle_rad = np.arctan2(target_dy, target_dx)
                         target_angle_deg = np.degrees(target_angle_rad)
 
@@ -243,24 +280,49 @@ async def process_yolo(websocket):
                         
                         if distance_to_saved_target > 50:
                             if abs(angle_diff) <= 10:
-                                network_msg = "F"     
-                                focused = True
+                                network_msg = "F"   
+                                # if time.time() % 0.5 < 0.25:
+                                #     network_msg = "F"
+                                # else:
+                                #     network_msg = "S"  
+                                # focused = True
                                                 
-                            
-                            elif abs(angle_diff) > 10 & focused == False:
-                                if angle_diff > 0:
-                                    # network_msg = "R"
-                                    if time.time() % 0.5 < 0.25:
+                            # here this line
+                            elif abs(angle_diff) > 10 and not focused:
+                                current_time = time.time()
+                                
+                                # Detect if we are stuck
+                                if last_turn_angle is not None and last_turn_time is not None:
+                                    angle_change = abs(angle_deg - last_turn_angle)
+                                    time_diff = current_time - last_turn_time
+                                    
+                                    if angle_change < 2 and time_diff > 3.0 and not stuck_recovery:
+                                        print("[⚠️] Turning but stuck — initiating forward nudge...")
+                                        stuck_start_time = current_time
+                                        stuck_recovery = True
+                                        network_msg = "F"
+                                    elif stuck_recovery:
+                                        if current_time - stuck_start_time < 1:
+                                            network_msg = "F"  # Keep going forward
+                                        else:
+                                            stuck_recovery = False  # Done recovery, resume turning
+                                            last_turn_time = current_time
+                                            last_turn_angle = angle_deg
+                                else:
+                                    # Initialize tracking
+                                    last_turn_angle = angle_deg
+                                    last_turn_time = current_time
+
+                                if not stuck_recovery:
+                                    # Continue normal turning logic
+                                    if angle_diff > 0:
+                                        # network_msg = "R" if current_time % 0.5 < 0.25 else "S"
                                         network_msg = "R"
                                     else:
-                                        network_msg = "S"
-                                    
-                                else:
-                                    # network_msg = "L"
-                                    if time.time() % 0.5 < 0.25:
+                                        # network_msg = "L" if current_time % 0.5 < 0.25 else "S"
                                         network_msg = "L"
-                                    else:
-                                        network_msg = "S"
+
+                        
                         
                         else:
                             network_msg = "S"
@@ -302,7 +364,10 @@ async def process_yolo(websocket):
                         (annotated_frame.shape[1] - 200, annotated_frame.shape[0] // 2), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 0, 255), 1)
 
-            cv2.imshow("YOLO GPU Detection", annotated_frame)
+            global latest_frame
+            latest_frame = annotated_frame.copy()
+
+            # cv2.imshow("YOLO GPU Detection", annotated_frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
@@ -320,6 +385,38 @@ async def process_yolo(websocket):
 
 
 
+
+
+
+from flask import Flask, Response
+from flask_cors import CORS
+
+app = Flask(__name__)
+CORS(app)
+
+latest_frame = None
+
+@app.route("/video_feed")
+def video_feed():
+    def generate():
+        global latest_frame
+        while True:
+            if latest_frame is not None:
+                _, jpeg = cv2.imencode('.jpg', latest_frame)
+                frame = jpeg.tobytes()
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+            time.sleep(0.03)  # ~30 fps
+    return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+
+
+
+
+
+
+
 async def main():
     async with websockets.connect(URI) as websocket:
         print("Connected to WebSocket")
@@ -328,6 +425,11 @@ async def main():
             await asyncio.sleep(0.5)  
 
 threading.Thread(target=cap.read, daemon=True).start()
+def start_flask():
+    app.run(host="0.0.0.0", port=5000)
+
+threading.Thread(target=start_flask, daemon=True).start()
+
 asyncio.run(main())
 
 cap.release()
