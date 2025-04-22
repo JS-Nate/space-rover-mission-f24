@@ -100,7 +100,7 @@ async def repl():
         window_name = "Hand Gesture Recognition Live Capture"
 
         # Use default capture device with default rendering
-        capture = cv2.VideoCapture(2)
+        capture = cv2.VideoCapture(0)
         # Window name
         # cv2.namedWindow(window_name, cv2.WND_PROP_AUTOSIZE)
 

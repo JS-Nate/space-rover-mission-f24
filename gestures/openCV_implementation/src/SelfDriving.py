@@ -22,7 +22,7 @@ except Exception as e:
     model = YOLO("best.pt").to("cpu")  
 
 class VideoCapture:
-    def __init__(self, src=0):
+    def __init__(self, src=2):
         self.cap = cv2.VideoCapture(src)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
@@ -55,7 +55,7 @@ class VideoCapture:
         self.running = False
         self.cap.release()
 
-cap = VideoCapture(0)
+cap = VideoCapture(2)
 
 cv2.setUseOptimized(True)
 
@@ -123,7 +123,7 @@ async def process_yolo(websocket):
             fps = 1 / latency if latency > 0 else 0  
 
             if results is None or len(results) == 0 or results[0].boxes is None:
-                print("No detections found! Skipping frame...")
+                print("no detections found! Skipping frame...")
                 processing = False
                 continue  
 
@@ -167,7 +167,7 @@ async def process_yolo(websocket):
                 dy = top_object[1] - center_object[1]
                 angle_rad = np.arctan2(dy, dx)
                 angle_deg = np.degrees(angle_rad)
-                print("[INFO] Bottom object missing — using Center instead.")
+                print("[INFO] bottom object missing — using Center instead.")
 
             elif bottom_object and center_object:
                 cv2.line(annotated_frame, bottom_object, center_object, (0, 0, 255), 2)
@@ -175,10 +175,10 @@ async def process_yolo(websocket):
                 dy = center_object[1] - bottom_object[1]
                 angle_rad = np.arctan2(dy, dx)
                 angle_deg = np.degrees(angle_rad)
-                print("[INFO] Top object missing — using Center instead.")
+                print("[INFO] top object missing — using Center instead.")
 
             else:
-                print("[⚠️] Not enough reference points (Top, Bottom, or Center) — skipping frame.")
+                print("not enough reference points (Top, Bottom, or Center) — skipping frame.")
                 processing = False
                 continue            
             
@@ -201,7 +201,7 @@ async def process_yolo(websocket):
                     )
                     print("[INFO] center_object missing — using midpoint of Top and Bottom.")
                 else:
-                    print(f"[⚠️] center_object is None and can't compute fallback — skipping frame.")
+                    print(f"center_object is None and can't compute fallback — skipping frame.")
                     processing = False
                     continue
             
@@ -316,11 +316,11 @@ async def process_yolo(websocket):
                                 if not stuck_recovery:
                                     # Continue normal turning logic
                                     if angle_diff > 0:
-                                        # network_msg = "R" if current_time % 0.5 < 0.25 else "S"
-                                        network_msg = "R"
+                                        network_msg = "R" if current_time % 0.5 < 0.25 else "S"
+                                        # network_msg = "R"
                                     else:
-                                        # network_msg = "L" if current_time % 0.5 < 0.25 else "S"
-                                        network_msg = "L"
+                                        network_msg = "L" if current_time % 0.5 < 0.25 else "S"
+                                        # network_msg = "L"
 
                         
                         
